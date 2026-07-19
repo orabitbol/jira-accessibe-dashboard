@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/jira.js": {
+      "maxDuration": 30
+    }
+  }
+}

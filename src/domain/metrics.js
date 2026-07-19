@@ -1,0 +1,592 @@
+// Pure aggregation helpers (no React, no network).
+import { teamForIssue, myTeam } from "../../teams.config.js";
+
+export const DAY = 86400000;
+export const STUCK_DAYS = 5;          // time in ONE WORKING status longer than this => "stuck" flag
+export const NOT_STARTED_FLAG_DAYS = 2; // still in To Do with <= this many days left in sprint => "at risk"
+export const MISS_THRESHOLD = 0.8;    // delivered < 80% of committed => "missed"
+
+export const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+// Story Points: the team fills "Story Points" (customfield_10032); some older
+// items only have "Story point estimate" (customfield_10016). Prefer 10032,
+// fall back to 10016. Returns 0 when neither is set (treated as unestimated).
+export const storyPoints = (issue) => num(issue.fields.customfield_10032 ?? issue.fields.customfield_10016);
+
+export const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+export function median(a) {
+  if (!a.length) return 0;
+  const s = [...a].sort((x, y) => x - y);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+export const round = (n, d = 1) => Math.round(n * 10 ** d) / 10 ** d;
+export const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const ms = (s) => (s ? new Date(s).getTime() : null);
+const isDone = (issue) => {
+  const st = issue.fields && issue.fields.status;
+  return !!(st && st.statusCategory && st.statusCategory.key === "done");
+};
+
+export function latestSprint(issue) {
+  const arr = issue.fields && issue.fields.customfield_10020;
+  if (!Array.isArray(arr) || !arr.length) return null;
+  return arr.reduce((a, b) => (b && (!a || b.id > a.id) ? b : a), null);
+}
+export function leadDays(issue) {
+  const c = issue.fields && issue.fields.created;
+  const r = issue.fields && issue.fields.resolutiondate;
+  if (!c || !r) return null;
+  const d = (new Date(r) - new Date(c)) / DAY;
+  return d >= 0 ? d : null;
+}
+export const shortSprint = (name) => String(name).replace(/Widget Engine /i, "").replace(/Sprint /i, "S");
+// True if a sprint belongs to my team's board (filters out other-project sprints
+// a teammate happened to work in). When boardId is unknown, don't filter.
+const onMyBoard = (sp) => !myTeam.boardId || sp.boardId == null || sp.boardId === myTeam.boardId;
+
+/* ----------------------------- Sprints ----------------------------------- */
+// Build my team's sprint list from the sprint field across issues.
+export function myTeamSprints(issues) {
+  const map = new Map();
+  for (const n of issues) {
+    if (teamForIssue(n) !== myTeam.name) continue;
+    const arr = n.fields && n.fields.customfield_10020;
+    if (!Array.isArray(arr)) continue;
+    for (const sp of arr) {
+      if (!sp || sp.id == null || !onMyBoard(sp)) continue;
+      if (!map.has(sp.id)) map.set(sp.id, { id: sp.id, name: sp.name, state: sp.state, startDate: sp.startDate, endDate: sp.endDate, completeDate: sp.completeDate });
+    }
+  }
+  return [...map.values()].sort((a, b) => (ms(a.startDate) || a.id) - (ms(b.startDate) || b.id));
+}
+export function currentSprint(sprints) {
+  const active = sprints.filter((s) => s.state === "active");
+  if (active.length) return active[active.length - 1];
+  const closed = sprints.filter((s) => s.state === "closed");
+  if (closed.length) return closed[closed.length - 1];
+  return sprints[sprints.length - 1] || null;
+}
+
+// First sprint counted as "under your leadership" for the My Impact tab.
+// A leadership transition rarely lands exactly on a sprint boundary, so if
+// managerSince falls INSIDE a sprint's window, credit starts from the sprint
+// right before it too (you were already substantively running that one).
+// This resolves to a fixed point in time (anchored to managerSince + the
+// historical sprint list), so it does NOT keep sliding forward as later
+// sprints become active. Expects `sprints` sorted ascending by start date.
+export function leadershipStartSprint(sprints, managerSince) {
+  if (!sprints.length) return null;
+  const managerMs = new Date(managerSince).getTime();
+  const containingIdx = sprints.findIndex((s) => {
+    const start = ms(s.startDate);
+    const end = ms(s.completeDate || s.endDate);
+    return start != null && end != null && managerMs >= start && managerMs < end;
+  });
+  if (containingIdx >= 0) return sprints[containingIdx - 1] || sprints[containingIdx];
+  // managerSince falls in a gap (or after the last known sprint) — first sprint starting on/after it.
+  return sprints.find((s) => { const start = ms(s.startDate); return start != null && start >= managerMs; }) || null;
+}
+
+/* --------------------------- Status board (light) ------------------------- */
+// "Time in current status" from statuscategorychangedate — NO changelog needed.
+export function enrichBoard(issues, now = Date.now()) {
+  return issues.map((n) => {
+    const f = n.fields;
+    const sinceCat = ms(f.statuscategorychangedate) || ms(f.updated) || ms(f.created);
+    const inCurrentDays = round((now - sinceCat) / DAY, 1);
+    const ageDays = round((now - ms(f.created)) / DAY, 1);
+    const sp = latestSprint(n);
+    const due = f.duedate ? new Date(f.duedate + "T23:59:59").getTime() : null;
+    const sprintEnd = sp && sp.endDate ? ms(sp.endDate) : null;
+    const target = due != null ? due : sprintEnd;
+    const remainingDays = target != null ? round((target - now) / DAY, 1) : null;
+    const statusName = f.status && f.status.name;
+
+    // A To-Do/backlog item simply hasn't started — that's NOT a delay.
+    // "Stuck" only counts for working statuses; "not started" only escalates
+    // when the sprint is almost over.
+    const notStarted = NOT_STARTED.has(statusName);
+    const blockers = blockersOf(n);
+    const dueOver = due != null && now > due;
+    const sprintEnded = sprintEnd != null && now > sprintEnd;
+    const stuckInWork = !notStarted && inCurrentDays >= STUCK_DAYS;
+    const daysLeftSprint = sprintEnd != null ? round((sprintEnd - now) / DAY, 1) : null;
+    const notStartedLate = notStarted && daysLeftSprint != null && daysLeftSprint >= 0 && daysLeftSprint <= NOT_STARTED_FLAG_DAYS;
+
+    const reasons = [];
+    if (dueOver) reasons.push(`עבר Due date לפני ${Math.abs(remainingDays)} ימים`);
+    if (blockers.length) reasons.push(`חסום ע״י ${blockers.join(", ")}`);
+    if (stuckInWork) reasons.push(`תקוע ב"${statusName}" כבר ${inCurrentDays} ימים`);
+    if (sprintEnded) reasons.push("הספרינט הסתיים והאיטם עוד פתוח");
+    if (notStartedLate) reasons.push(`טרם התחיל ונשארו ${daysLeftSprint} ימים לספרינט`);
+
+    let level = "ok";
+    if (dueOver || blockers.length || stuckInWork || sprintEnded) level = "bad";
+    else if (notStartedLate) level = "warn";
+
+    let stateLabel = null, stateClass = null;
+    if (level === "bad") { stateClass = "bad"; stateLabel = blockers.length ? "חסום" : "מתעכב"; }
+    else if (level === "warn") { stateClass = "warn"; stateLabel = "בסיכון"; }
+    else if (notStarted) { stateClass = "neutral"; stateLabel = "טרם התחיל"; }
+    // normal working items get no chip — the status pill already says it
+
+    return {
+      key: n.key, webUrl: n.webUrl, summary: f.summary,
+      assignee: f.assignee ? f.assignee.displayName : "לא משויך",
+      assigneeId: f.assignee ? f.assignee.accountId : "none",
+      avatar: f.assignee && f.assignee.avatarUrls ? f.assignee.avatarUrls["24x24"] : null,
+      team: teamForIssue(n), type: f.issuetype && f.issuetype.name, priority: f.priority && f.priority.name,
+      project: f.project && f.project.key, status: statusName, created: f.created,
+      inActiveSprint: !!(sp && sp.state === "active"), sprintName: sp ? sp.name : null,
+      sprintStart: sp ? sp.startDate : null, sprintEnd: sp ? sp.endDate : null,
+      points: storyPoints(n), inCurrentDays, ageDays, remainingDays,
+      remainingBasis: due != null ? "due" : sprintEnd != null ? "sprint" : null,
+      notStarted, level, stateLabel, stateClass,
+      delayed: level === "bad", reasons,
+    };
+  });
+}
+export function blockersOf(issue) {
+  const links = (issue.fields && issue.fields.issuelinks) || [];
+  const out = [];
+  for (const l of links) {
+    if (l.type && l.type.inward === "is blocked by" && l.inwardIssue) {
+      const st = l.inwardIssue.fields && l.inwardIssue.fields.status;
+      if (!(st && st.statusCategory && st.statusCategory.key === "done")) out.push(l.inwardIssue.key);
+    }
+  }
+  return out;
+}
+
+/* ---------------------- Sprint commitment / health ------------------------ */
+// Sprint-commitment state (met/missed/ontrack/atrisk/behind) for one attainment ratio.
+function commitmentState(attainment, closed, elapsed) {
+  if (closed) return attainment >= MISS_THRESHOLD ? "met" : "missed";
+  if (attainment >= elapsed - 0.05) return "ontrack";
+  if (attainment >= elapsed - 0.25) return "atrisk";
+  return "behind";
+}
+
+// Per-developer commitment vs delivery for one sprint. Two INDEPENDENT
+// attainment lenses are always computed: `pointsAttainment` (SP done ÷ SP
+// committed) and `completionAttainment` (items done ÷ items committed,
+// ignoring points entirely). `mode` ("points" | "completion") just picks
+// which one drives the back-compat `attainment`/`state` fields.
+export function sprintCommitment(sprintIssues, sprint, mode = "points", now = Date.now(), onlyTeam = myTeam.name) {
+  const start = ms(sprint && sprint.startDate);
+  const end = ms(sprint && (sprint.completeDate || sprint.endDate));
+  const closed = sprint && sprint.state === "closed";
+  const people = new Map();
+  const get = (a) => {
+    const id = a ? a.accountId : "none";
+    if (!people.has(id)) people.set(id, {
+      id, name: a ? a.displayName : "לא משויך", avatar: a && a.avatarUrls ? a.avatarUrls["24x24"] : null,
+      committedPts: 0, addedPts: 0, donePts: 0, totalPts: 0, committedItems: 0,
+      totalItems: 0, doneItems: 0, carryOver: 0, addedMid: 0, noEstimate: 0, openItems: [], doneList: [], lateList: [],
+    });
+    return people.get(id);
+  };
+  for (const n of sprintIssues) {
+    if (onlyTeam && teamForIssue(n) !== onlyTeam) continue;
+    const f = n.fields;
+    const p = get(f.assignee);
+    const pts = storyPoints(n);
+    const created = ms(f.created);
+    const addedMid = start != null && created != null && created > start + DAY; // created after sprint start
+    const done = isDone(n);
+    const doneInSprint = done && (!closed || (ms(f.resolutiondate) != null && (end == null || ms(f.resolutiondate) <= end + DAY)));
+    const carried = Array.isArray(f.customfield_10020) && f.customfield_10020.length > 1;
+
+    p.totalItems += 1; p.totalPts += pts;
+    if (addedMid) { p.addedMid += 1; p.addedPts += pts; } else { p.committedPts += pts; p.committedItems += 1; }
+    if (carried) p.carryOver += 1;
+    if (pts === 0) p.noEstimate += 1;
+    const item = { key: n.key, webUrl: n.webUrl, summary: f.summary, status: f.status && f.status.name, pts, missing: pts === 0, type: f.issuetype && f.issuetype.name };
+    if (doneInSprint) { p.doneItems += 1; p.donePts += pts; p.doneList.push(item); }
+    else if (done) p.lateList.push(item); // done now, but completed after the sprint ended — carry-over
+    else p.openItems.push(item);
+  }
+  const elapsed = start != null && end != null && end > start ? clamp((now - start) / (end - start), 0, 1) : 0.5;
+  // finalize
+  return [...people.values()].map((p) => {
+    const pointsBase = p.committedPts || p.totalPts || 0;
+    const pointsAttainment = pointsBase > 0 ? p.donePts / pointsBase : (p.totalItems ? p.doneItems / p.totalItems : 0);
+    const itemsBase = p.committedItems || p.totalItems || 0;
+    const completionAttainment = itemsBase > 0 ? p.doneItems / itemsBase : 0;
+    const pointsState = commitmentState(pointsAttainment, closed, elapsed);
+    const completionState = commitmentState(completionAttainment, closed, elapsed);
+    const attainment = mode === "completion" ? completionAttainment : pointsAttainment;
+    const state = mode === "completion" ? completionState : pointsState;
+    return {
+      ...p,
+      committedPts: round(p.committedPts, 1), addedPts: round(p.addedPts, 1),
+      donePts: round(p.donePts, 1), totalPts: round(p.totalPts, 1),
+      pointsAttainment: round(pointsAttainment * 100, 0), completionAttainment: round(completionAttainment * 100, 0),
+      pointsState, completionState,
+      attainment: round(attainment * 100, 0), state,
+    };
+  }).filter((p) => p.totalItems > 0).sort((a, b) => a.attainment - b.attainment);
+}
+
+// All of the team's tickets in one sprint, grouped done / not-done (for drill-down).
+export function sprintTickets(sprintIssues, sprint, onlyTeam = myTeam.name) {
+  const start = ms(sprint && sprint.startDate);
+  const end = ms(sprint && (sprint.completeDate || sprint.endDate));
+  const closed = sprint && sprint.state === "closed";
+  const done = [], late = [], open = [];
+  let noEstimate = 0;
+  for (const n of sprintIssues || []) {
+    if (onlyTeam && teamForIssue(n) !== onlyTeam) continue;
+    const f = n.fields;
+    const pts = storyPoints(n);
+    if (pts === 0) noEstimate += 1;
+    const doneNow = isDone(n);
+    const inSprint = doneNow && (!closed || (ms(f.resolutiondate) != null && (end == null || ms(f.resolutiondate) <= end + DAY)));
+    const item = {
+      key: n.key, webUrl: n.webUrl, summary: f.summary, status: f.status && f.status.name,
+      pts, missing: pts === 0, type: f.issuetype && f.issuetype.name,
+      assignee: f.assignee ? f.assignee.displayName : "לא משויך",
+    };
+    if (inSprint) done.push(item);
+    else if (doneNow) late.push(item);
+    else open.push(item);
+  }
+  return { done, late, open, noEstimate };
+}
+
+// Multi-sprint commitment matrix + recurring-miss detection.
+export function commitmentTrend(perSprint) {
+  // perSprint: [{ sprint, rows: sprintCommitment(...) }] oldest->newest, closed sprints meaningful
+  const devs = new Map();
+  for (const { sprint, rows } of perSprint) {
+    for (const r of rows) {
+      if (r.id === "none") continue;
+      if (!devs.has(r.id)) devs.set(r.id, { id: r.id, name: r.name, points: [] });
+      devs.get(r.id).points.push({ sprint: sprint.name, attainment: r.attainment, state: r.state, closed: sprint.state === "closed" });
+    }
+  }
+  return [...devs.values()].map((d) => {
+    const closed = d.points.filter((p) => p.closed);
+    const misses = closed.filter((p) => p.state === "missed").length;
+    // Average only over COMPLETED sprints — the in-progress sprint is partial
+    // and would otherwise drag the average down misleadingly.
+    const avg = closed.length ? round(mean(closed.map((p) => p.attainment)), 0) : null;
+    const recurring = closed.length >= 2 && misses >= Math.ceil(closed.length / 2);
+    return { ...d, avg, misses, closedCount: closed.length, recurring };
+  }).sort((a, b) => (b.recurring - a.recurring) || ((a.avg == null ? 101 : a.avg) - (b.avg == null ? 101 : b.avg)));
+}
+
+/* --------------------------- Planning (future) ---------------------------- */
+// My team's upcoming sprints (active or future) derived from open issues.
+export function planningSprints(openIssues) {
+  const map = new Map();
+  for (const n of openIssues) {
+    if ((n.fields.project && n.fields.project.key) !== myTeam.key) continue;
+    const arr = n.fields.customfield_10020;
+    if (!Array.isArray(arr)) continue;
+    for (const sp of arr) {
+      if (!sp || sp.id == null || !onMyBoard(sp)) continue;
+      if (sp.state !== "active" && sp.state !== "future") continue;
+      if (!map.has(sp.id)) map.set(sp.id, { id: sp.id, name: sp.name, state: sp.state, startDate: sp.startDate, endDate: sp.endDate });
+    }
+  }
+  // active first, then future by start/id
+  return [...map.values()].sort((a, b) => {
+    if (a.state !== b.state) return a.state === "active" ? -1 : 1;
+    return (ms(a.startDate) || a.id) - (ms(b.startDate) || b.id);
+  });
+}
+export function defaultPlanningSprint(sprints) {
+  return sprints.find((s) => s.state === "future") || sprints.find((s) => s.state === "active") || sprints[0] || null;
+}
+const hasEstimate = (issue) => storyPoints(issue) > 0;
+
+export function planningRows(openIssues, sprintId) {
+  return openIssues
+    .filter((n) => { const sp = latestSprint(n); return sp && sp.id === sprintId; })
+    .map((n) => {
+      const f = n.fields;
+      return {
+        key: n.key, webUrl: n.webUrl, summary: f.summary,
+        assigneeId: f.assignee ? f.assignee.accountId : "none",
+        assignee: f.assignee ? f.assignee.displayName : "Unassigned",
+        avatar: f.assignee && f.assignee.avatarUrls ? f.assignee.avatarUrls["24x24"] : null,
+        type: f.issuetype && f.issuetype.name, status: f.status && f.status.name,
+        priority: f.priority && f.priority.name,
+        points: storyPoints(n), missing: !hasEstimate(n),
+      };
+    })
+    .sort((a, b) => (b.missing - a.missing) || a.assignee.localeCompare(b.assignee));
+}
+export function planningStats(rows) {
+  const missing = rows.filter((r) => r.missing).length;
+  const people = new Set(rows.map((r) => r.assignee)).size;
+  const points = round(rows.reduce((a, r) => a + r.points, 0), 1);
+  return { total: rows.length, missing, estimated: rows.length - missing, people, points };
+}
+
+/* -------------------- Manager impact (before / after) --------------------- */
+// Per-sprint team summary (velocity / attainment / lead / bugs), tagged
+// before/after the manager date. Needs sprint issues loaded. Both attainment
+// lenses are always computed; `mode` picks which one drives `attainment`.
+export function sprintSummaries(sprints, sprintIssuesById, managerMs, mode = "points") {
+  const out = [];
+  for (const sp of sprints) {
+    const issues = sprintIssuesById[sp.id];
+    if (!issues) continue;
+    const rows = sprintCommitment(issues, sp, mode);
+    const committedPts = rows.reduce((a, r) => a + r.committedPts, 0);
+    const donePts = rows.reduce((a, r) => a + r.donePts, 0);
+    const committedItems = rows.reduce((a, r) => a + r.committedItems, 0);
+    const doneItems = rows.reduce((a, r) => a + r.doneItems, 0);
+    const totalItems = rows.reduce((a, r) => a + r.totalItems, 0);
+    const mineDone = issues.filter((n) => teamForIssue(n) === myTeam.name && isDone(n));
+    const leads = mineDone.map(leadDays).filter((v) => v != null);
+    const bugsDone = mineDone.filter((n) => n.fields.issuetype && n.fields.issuetype.name === "Bug").length;
+    const when = ms(sp.startDate);
+    const pointsAttainment = committedPts ? Math.round((donePts / committedPts) * 100) : (totalItems ? Math.round((doneItems / totalItems) * 100) : 0);
+    const completionAttainment = committedItems ? Math.round((doneItems / committedItems) * 100) : (totalItems ? Math.round((doneItems / totalItems) * 100) : 0);
+    out.push({
+      id: sp.id, name: sp.name, startDate: sp.startDate, endDate: sp.endDate, state: sp.state,
+      hasDate: when != null, after: when != null && when >= managerMs,
+      committedPts: round(committedPts, 1), donePts: round(donePts, 1), committedItems,
+      pointsAttainment, completionAttainment,
+      attainment: mode === "completion" ? completionAttainment : pointsAttainment,
+      doneItems, totalItems,
+      leadMedian: round(median(leads), 1),
+      bugRatio: mineDone.length ? Math.round((bugsDone / mineDone.length) * 100) : 0,
+    });
+  }
+  return out.sort((a, b) => (ms(a.startDate) || a.id) - (ms(b.startDate) || b.id));
+}
+
+// Average a list of per-sprint summaries (used for baseline vs since-leadership).
+export function averageSummaries(list) {
+  if (!list || !list.length) return null;
+  const avg = (sel) => round(mean(list.map(sel)), 1);
+  return {
+    count: list.length,
+    attainment: Math.round(mean(list.map((s) => s.attainment))),
+    pointsAttainment: Math.round(mean(list.map((s) => s.pointsAttainment))),
+    completionAttainment: Math.round(mean(list.map((s) => s.completionAttainment))),
+    velocity: avg((s) => s.donePts),
+    throughput: avg((s) => s.doneItems),
+    lead: avg((s) => s.leadMedian),
+    bug: Math.round(mean(list.map((s) => s.bugRatio))),
+  };
+}
+
+/* ----------------- Time-in-status from changelog (windowed) --------------- */
+// Accumulates time per status, CLIPPED to [windowStart, endRef] so a sprint
+// view only counts time that actually elapsed inside the sprint (this is what
+// stops "To Do" from showing months of pre-sprint backlog time).
+export function statusDurations(transitions, createdISO, fallbackStatus, opts = {}) {
+  const now = opts.now != null ? opts.now : Date.now();
+  const endRef = opts.endRef != null ? opts.endRef : now;
+  const created = new Date(createdISO).getTime();
+  const windowStart = opts.windowStart != null ? opts.windowStart : created;
+  const byStatus = {};
+  const clip = (a, b) => Math.max(0, Math.min(b, endRef) - Math.max(a, windowStart));
+  const add = (st, a, b) => { if (st) byStatus[st] = (byStatus[st] || 0) + clip(a, b); };
+  const tr = [...(transitions || [])].sort((a, b) => new Date(a.at) - new Date(b.at));
+  if (!tr.length) { add(fallbackStatus, created, endRef); return { byStatus, currentStatus: fallbackStatus, currentSince: created }; }
+  let prev = created, cur = tr[0].from || fallbackStatus;
+  for (const t of tr) { const at = new Date(t.at).getTime(); add(cur, prev, at); prev = at; cur = t.to; }
+  add(cur, prev, endRef);
+  return { byStatus, currentStatus: cur || fallbackStatus, currentSince: prev };
+}
+
+// Chronological lifecycle of one ticket: ordered segments [{status, days, from, to}].
+// Includes the To-Do/wait time so it can be shown distinctly on a timeline.
+export function statusSegments(transitions, createdISO, fallbackStatus, now = Date.now()) {
+  const created = new Date(createdISO).getTime();
+  const tr = [...(transitions || [])].sort((a, b) => new Date(a.at) - new Date(b.at));
+  const raw = [];
+  if (!tr.length) {
+    raw.push({ status: fallbackStatus, from: created, to: now });
+  } else {
+    let prev = created, cur = tr[0].from || fallbackStatus;
+    for (const t of tr) { const at = new Date(t.at).getTime(); raw.push({ status: cur, from: prev, to: at }); prev = at; cur = t.to; }
+    raw.push({ status: cur, from: prev, to: now });
+  }
+  // merge consecutive same-status, drop empties
+  const merged = [];
+  for (const s of raw) {
+    const last = merged[merged.length - 1];
+    if (last && last.status === s.status) last.to = s.to;
+    else merged.push({ ...s });
+  }
+  return merged
+    .map((s) => ({ status: s.status, from: s.from, to: s.to, days: round((s.to - s.from) / DAY, 1) }))
+    .filter((s) => s.to - s.from > 0);
+}
+
+// Generic: given a sorted-by-time list of change events ({at, from, to}) and
+// an initial value (falls back to the first event's `from` when present,
+// else `fallbackInitial`), builds contiguous UNMERGED segments
+// [{value, from, to}] (ms epoch) spanning the whole [createdMs, nowMs] life
+// of the ticket. Shared by the status timeline and the ownership timeline
+// below so the two can be intersected minute-for-minute.
+function rawSegments(events, createdMs, fallbackInitial, nowMs) {
+  const sorted = [...(events || [])].sort((a, b) => new Date(a.at) - new Date(b.at));
+  if (!sorted.length) return [{ value: fallbackInitial, from: createdMs, to: nowMs }];
+  const out = [];
+  let prev = createdMs, cur = sorted[0].from != null ? sorted[0].from : fallbackInitial;
+  for (const e of sorted) { const at = new Date(e.at).getTime(); out.push({ value: cur, from: prev, to: at }); prev = at; cur = e.to; }
+  out.push({ value: cur, from: prev, to: nowMs });
+  return out;
+}
+
+// Sweep-line intersection of two segment lists spanning the SAME overall
+// range. Returns [{from, to, a, b}] — `a`/`b` are the two lists' values
+// active during that slice.
+function intersectSegments(a, b) {
+  const out = [];
+  let i = 0, j = 0;
+  while (i < a.length && j < b.length) {
+    const from = Math.max(a[i].from, b[j].from);
+    const to = Math.min(a[i].to, b[j].to);
+    if (to > from) out.push({ from, to, a: a[i].value, b: b[j].value });
+    if (a[i].to < b[j].to) i++;
+    else if (b[j].to < a[i].to) j++;
+    else { i++; j++; }
+  }
+  return out;
+}
+
+// Per-person time-in-status, scoped to a single sprint's window.
+//
+// Tickets currently sitting in a "non-work" status (Archived, etc. — see
+// NON_WORK_STATUSES) are shelved/no-longer-relevant, not real engineering
+// effort. They're pulled out of `stages`/`items`/`cycleDays` entirely so they
+// can't masquerade as a work stage or drag the average cycle time around —
+// but they are NOT silently dropped: each person gets an `excluded` list
+// (ticket + status) and `excludedCount` so the UI can show exactly what was
+// left out and why. Any historical time a still-active ticket spent in a
+// non-work status (e.g. briefly archived, then reopened) is stripped from
+// its segments the same way, for the same reason.
+//
+// A ticket that changed hands mid-sprint (reassigned) has its time-in-status
+// split between whoever actually held it when — NOT credited/blamed entirely
+// on whoever holds it right now. `items` (the "N items" count) still counts
+// against the CURRENT assignee only, since that reflects what's on their
+// plate today; only the historical time itself is split.
+export function stageStatsByPerson(issues, changelogByKey, sprint, now = Date.now()) {
+  const windowStart = ms(sprint && sprint.startDate);
+  const sprintEnd = ms(sprint && (sprint.completeDate || sprint.endDate));
+  const windowEnd = sprintEnd != null ? Math.min(sprintEnd, now) : now;
+  const people = new Map();
+  const getPerson = (id, name, avatar) => {
+    if (!people.has(id)) people.set(id, { id, name, avatar, byStatus: {}, items: 0, excluded: [], changed: [] });
+    return people.get(id);
+  };
+  for (const n of issues) {
+    const a = n.fields.assignee; if (!a) continue;
+    const p = getPerson(a.accountId, a.displayName, a.avatarUrls ? a.avatarUrls["24x24"] : null);
+    const statusName = n.fields.status && n.fields.status.name;
+    if (NON_WORK_STATUSES.has(statusName)) {
+      p.excluded.push({ key: n.key, webUrl: n.webUrl, summary: n.fields.summary, status: statusName });
+      continue;
+    }
+    p.items += 1;
+    const cl = changelogByKey[n.key];
+    // Reassigned / re-estimated / re-scoped mid-flight? Tracked against the
+    // CURRENT owner (who you'd click into from this card) so nothing about
+    // this ticket's history is hidden — see changeSummary().
+    const cs = changeSummary(cl);
+    if (cs.changed) p.changed.push({ key: n.key, webUrl: n.webUrl, summary: n.fields.summary, ...cs });
+    const created = ms(n.fields.created);
+    const res = ms(n.fields.resolutiondate);
+    const endRef = res != null ? Math.min(res, windowEnd) : windowEnd;
+    const reassignments = cl && cl.reassignments;
+
+    if (!reassignments || !reassignments.length) {
+      // Fast path: this ticket had one owner the whole time — same as before.
+      const dur = statusDurations(cl && cl.transitions, n.fields.created, statusName, { windowStart, endRef, now });
+      for (const [st, m] of Object.entries(dur.byStatus)) {
+        if (NON_WORK_STATUSES.has(st)) continue;
+        p.byStatus[st] = (p.byStatus[st] || 0) + m;
+      }
+      continue;
+    }
+
+    // Reassigned at some point: build the status timeline and the ownership
+    // timeline independently, then intersect them so each slice of time is
+    // attributed to (whoever held it) × (whatever status it was in).
+    const statusRaw = rawSegments(cl.transitions, created, statusName, now);
+    const ownerRaw = rawSegments(
+      reassignments.map((r) => ({ at: r.at, from: r.fromId, to: r.toId })),
+      created, "none", now
+    );
+    const ownerNames = { [a.accountId]: { name: a.displayName, avatar: a.avatarUrls ? a.avatarUrls["24x24"] : null } };
+    for (const r of reassignments) {
+      if (r.fromId && !ownerNames[r.fromId]) ownerNames[r.fromId] = { name: r.fromName, avatar: null };
+      if (r.toId && !ownerNames[r.toId]) ownerNames[r.toId] = { name: r.toName, avatar: null };
+    }
+    const clip = (x, y) => Math.max(0, Math.min(y, endRef) - Math.max(x, windowStart));
+    for (const seg of intersectSegments(statusRaw, ownerRaw)) {
+      const dur2 = clip(seg.from, seg.to);
+      if (dur2 <= 0) continue;
+      if (NON_WORK_STATUSES.has(seg.a)) continue; // seg.a = status at that slice
+      const ownerId = seg.b; // seg.b = owner (accountId) at that slice
+      if (!ownerId || ownerId === "none") continue; // unassigned gap — nobody to credit
+      const info = ownerNames[ownerId] || { name: "לא ידוע", avatar: null };
+      const op = getPerson(ownerId, info.name, info.avatar);
+      op.byStatus[seg.a] = (op.byStatus[seg.a] || 0) + dur2;
+    }
+  }
+  return [...people.values()].map((p) => {
+    const stages = Object.entries(p.byStatus).map(([status, m]) => ({ status, days: round(m / DAY, 1) })).filter((s) => s.days > 0).sort((a, b) => b.days - a.days);
+    const total = round(stages.reduce((a, b) => a + b.days, 0), 1);
+    // Cycle time = time once work actually started (excludes To-Do/backlog wait).
+    const cycle = round(stages.filter((s) => !NOT_STARTED.has(s.status)).reduce((a, b) => a + b.days, 0), 1);
+    return { ...p, stages, total, cycleDays: cycle, cyclePerItem: p.items ? round(cycle / p.items, 1) : 0, excludedCount: p.excluded.length, changedCount: p.changed.length };
+  }).sort((a, b) => b.total - a.total);
+}
+
+// Did this ticket change hands, get re-estimated, or have its content edited
+// mid-flight? Used for the "changed" badge + drill-down on ticket cards.
+// Purely derived from the same changelog already fetched for stage analysis
+// — no extra Jira calls.
+export function changeSummary(changelog) {
+  const reassignments = (changelog && changelog.reassignments) || [];
+  const pointsChanges = (changelog && changelog.pointsChanges) || [];
+  const contentChanges = (changelog && changelog.contentChanges) || [];
+  return {
+    reassignments, pointsChanges, contentChanges,
+    changed: reassignments.length > 0 || pointsChanges.length > 0 || contentChanges.length > 0,
+  };
+}
+// Statuses that represent "not started yet" — excluded from cycle time.
+export const NOT_STARTED = new Set(["To Do", "Backlog", "Selected for Development", "Open", "Reopened"]);
+// Statuses that mean the ticket was shelved/cancelled/no-longer-relevant —
+// not real work. Kept out of Stage Analysis (see stageStatsByPerson above).
+// Extend this list if the workflow grows more dead-end statuses
+// (e.g. "Won't Do", "Duplicate", "Rejected").
+export const NON_WORK_STATUSES = new Set(["Archived"]);
+
+// High-contrast, deterministic colors. Known statuses get hand-picked, very
+// distinct hues; anything else falls back to a distinct palette.
+const STATUS_MAP = {
+  "To Do": "#94a3b8",            // slate
+  "Backlog": "#64748b",
+  "Selected for Development": "#0891b2",
+  "In Progress": "#2563eb",      // blue
+  "Code Review": "#f97316",      // orange
+  "In Review": "#f97316",
+  "Ready for QA": "#eab308",     // amber/yellow
+  "In QA": "#9333ea",            // purple
+  "QA": "#9333ea",
+  "Ready for release": "#14b8a6",// teal
+  "Research": "#ec4899",         // pink
+  "Blocked": "#dc2626",          // red
+  "Done": "#16a34a",             // green
+};
+const FALLBACK = ["#2563eb", "#f97316", "#9333ea", "#14b8a6", "#ec4899", "#eab308", "#dc2626", "#0891b2", "#94a3b8"];
+export const STATUS_COLORS = {};
+export function colorForStatus(status) {
+  if (STATUS_MAP[status]) return STATUS_MAP[status];
+  if (!STATUS_COLORS[status]) STATUS_COLORS[status] = FALLBACK[Object.keys(STATUS_COLORS).length % FALLBACK.length];
+  return STATUS_COLORS[status];
+}
