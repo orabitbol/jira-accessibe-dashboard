@@ -1,4 +1,4 @@
-import { colorForStatus, NOT_STARTED } from "../../domain/metrics.js";
+import { colorForStatus, NOT_STARTED, PAUSED_STATUSES } from "../../domain/metrics.js";
 import { fmtDur } from "../../utils/format.js";
 
 // CSS segmented bar (same visual language as the per-ticket lifecycle bar):
@@ -20,20 +20,22 @@ export function StageBar({ stages, items = 1, elapsedDays = null }) {
   const total = ordered.reduce((s, x) => s + x.days, 0) || 1;
   const perItem = items > 0 ? items : 1;
   return (
-    <div className="sbar" dir="ltr">
+    <div className="sbar">
       {ordered.map((s, i) => {
         const wait = NOT_STARTED.has(s.status);
+        const paused = PAUSED_STATUSES.has(s.status);
         const pct = Math.round((s.days / total) * 100);
         const avgDays = s.days / perItem;
         // Read against the sprint's own pace: "X days" only means something
         // once you know what fraction of the sprint has elapsed so far.
         const ofSprint = elapsedDays && elapsedDays > 0 ? Math.round((avgDays / elapsedDays) * 100) : null;
+        const suffix = wait ? " (waiting)" : paused ? " (blocked — not counted as active work)" : "";
         return (
           <span key={i} className={"sseg" + (wait ? " wait" : "")}
             style={{ width: `${(s.days / total) * 100}%`, background: wait ? undefined : colorForStatus(s.status) }}>
             <span className="sseg-tip">
               <i style={{ background: wait ? "#cbd5e1" : colorForStatus(s.status) }} />
-              {s.status}{wait ? " (waiting)" : ""} · {fmtDur(avgDays)}/item avg{ofSprint != null ? ` · ${ofSprint}% of sprint-so-far` : ""}
+              {s.status}{suffix} · {fmtDur(avgDays)}/item avg (workdays){ofSprint != null ? ` · ${ofSprint}% of the sprint's workdays so far` : ""}
             </span>
           </span>
         );

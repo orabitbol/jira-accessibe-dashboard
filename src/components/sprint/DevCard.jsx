@@ -8,8 +8,8 @@ export function DevCard({ r, mode = "points" }) {
   const isCompletion = mode === "completion";
   const primaryDone = isCompletion ? r.doneItems : r.donePts;
   const primaryBase = isCompletion ? (r.committedItems || r.totalItems) : (r.committedPts || r.totalPts);
-  const primaryUnit = isCompletion ? "משימות" : "SP";
-  const secondary = isCompletion ? `${r.donePts}/${r.committedPts || r.totalPts} SP` : `${r.doneItems}/${r.totalItems} איטמים`;
+  const primaryUnit = isCompletion ? "tasks" : "SP";
+  const secondary = isCompletion ? `${r.donePts}/${r.committedPts || r.totalPts} SP` : `${r.doneItems}/${r.totalItems} items`;
   const noItems = r.totalItems === 0;
   return (
     <div className={"dev " + cls}>
@@ -19,7 +19,7 @@ export function DevCard({ r, mode = "points" }) {
         <span className={"pill " + cls}>{label}</span>
       </div>
       {noItems ? (
-        <div className="dev-nums muted">אין משימות משויכות בספרינט הזה</div>
+        <div className="dev-nums muted">No tasks assigned in this sprint</div>
       ) : (
         <>
           <div className="dev-bar"><span style={{ width: `${pct}%` }} className={cls} /></div>
@@ -29,9 +29,9 @@ export function DevCard({ r, mode = "points" }) {
         </>
       )}
       <div className="dev-tags">
-        {r.addedMid > 0 && <span className="tag">+{r.addedMid} נוספו באמצע ({r.addedPts} SP)</span>}
+        {r.addedMid > 0 && <span className="tag">+{r.addedMid} added mid-sprint ({r.addedPts} SP)</span>}
         {r.carryOver > 0 && <span className="tag warn">{r.carryOver} carry-over</span>}
-        {r.openItems.length > 0 && <button className="linkbtn" onClick={() => setOpen(!open)}>{open ? "הסתר" : `${r.openItems.length} פתוחים`}</button>}
+        {r.openItems.length > 0 && <button className="linkbtn" onClick={() => setOpen(!open)}>{open ? "Hide" : `${r.openItems.length} open`}</button>}
       </div>
       {open && (
         <div className="openlist">

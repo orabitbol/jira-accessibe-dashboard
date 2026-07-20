@@ -1,23 +1,23 @@
 // Small presentational label helpers (pure, no JSX).
 
 export function remainLabel(it) {
-  if (it.remainingDays == null) return "אין יעד";
-  const basis = it.remainingBasis === "due" ? "Due" : "ספרינט";
+  if (it.remainingDays == null) return "No target";
+  const basis = it.remainingBasis === "due" ? "Due" : "Sprint";
   return it.remainingDays < 0
-    ? `באיחור ${Math.abs(it.remainingDays)}ד (${basis})`
-    : `נשאר ${it.remainingDays}ד (${basis})`;
+    ? `${Math.abs(it.remainingDays)}d overdue (${basis})`
+    : `${it.remainingDays}d left (${basis})`;
 }
 
 export const typeClass = (t) => (t === "Bug" ? "bug" : t === "Story" ? "story" : "task");
 
 export const attCell = (a) => (a >= 80 ? "cell-good" : a >= 50 ? "cell-warn" : "cell-bad");
 
-// Sprint-commitment state -> [hebrew label, css class]
+// Sprint-commitment state -> [label, css class]
 export const STATE_LABEL = {
-  ontrack: ["בזמן", "ok"],
-  atrisk: ["בסיכון", "warn"],
-  behind: ["מאחר", "bad"],
-  met: ["עמד ביעד", "ok"],
-  missed: ["פספס", "bad"],
-  none: ["אין משימות", "neutral"],
+  ontrack: ["On track", "ok"],
+  atrisk: ["At risk", "warn"],
+  behind: ["Behind", "bad"],
+  met: ["Met target", "ok"],
+  missed: ["Missed", "bad"],
+  none: ["No tasks", "neutral"],
 };

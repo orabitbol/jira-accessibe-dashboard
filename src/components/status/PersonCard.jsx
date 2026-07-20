@@ -10,7 +10,7 @@ export function PersonCard({ person }) {
         {person.avatar ? <img src={person.avatar} alt="" /> : <span className="ava" />}
         <div>
           <div className="pname">{person.name}</div>
-          <div className="muted small">{person.team} · {person.items.length} בספרינט</div>
+          <div className="muted small">{person.team} · {person.items.length} in sprint</div>
         </div>
       </div>
       {person.items.map((it) => <TaskCard key={it.key} it={it} />)}
@@ -18,7 +18,7 @@ export function PersonCard({ person }) {
       {stale.length > 0 && (
         <div className="stale-wrap">
           <button className="stale-toggle" onClick={() => setShowStale(!showStale)} aria-expanded={showStale}>
-            {showStale ? "▾" : "▸"} {stale.length} משימות מחוץ לספרינט (אולי נשכחו)
+            {showStale ? "▾" : "▸"} {stale.length} tasks outside the sprint (may have been forgotten)
           </button>
           {showStale && (
             <div className="stale-list">

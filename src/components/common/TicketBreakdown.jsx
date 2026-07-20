@@ -7,7 +7,7 @@ function Row({ it, showAssignee }) {
       {showAssignee && <span className="tk-who">{it.assignee}</span>}
       <span className="tk-sum">{it.summary}</span>
       <span className="tk-status">{it.status}</span>
-      {it.missing ? <span className="tk-miss">ללא הערכה</span> : <span className="tk-sp">{it.pts} SP</span>}
+      {it.missing ? <span className="tk-miss">No estimate</span> : <span className="tk-sp">{it.pts} SP</span>}
     </a>
   );
 }
@@ -16,24 +16,24 @@ export function TicketBreakdown({ done = [], late = [], open = [], noEstimate = 
   return (
     <div className="tkbreak">
       <div className="tkgroup">
-        <div className="tkgroup-head done">✓ נסגרו בספרינט ({done.length})</div>
+        <div className="tkgroup-head done">✓ Closed in sprint ({done.length})</div>
         {done.length ? done.map((it) => <Row key={it.key} it={it} showAssignee={showAssignee} />)
-          : <div className="muted small tkempty">אין</div>}
+          : <div className="muted small tkempty">None</div>}
       </div>
       {late.length > 0 && (
         <div className="tkgroup">
-          <div className="tkgroup-head late">↪ נסגרו אחרי הספרינט — לא נספרו לספרינט זה ({late.length})</div>
+          <div className="tkgroup-head late">↪ Closed after sprint end — not counted for this sprint ({late.length})</div>
           {late.map((it) => <Row key={it.key} it={it} showAssignee={showAssignee} />)}
         </div>
       )}
       <div className="tkgroup">
-        <div className="tkgroup-head undone">✗ נותרו פתוחים ({open.length})</div>
+        <div className="tkgroup-head undone">✗ Still open ({open.length})</div>
         {open.length ? open.map((it) => <Row key={it.key} it={it} showAssignee={showAssignee} />)
-          : <div className="muted small tkempty">אין</div>}
+          : <div className="muted small tkempty">None</div>}
       </div>
       {noEstimate > 0 && (
         <div className="tknote">
-          ⚠ {noEstimate} משימות ללא Story Points — לא נספרות בעמידה ביעד (אי אפשר למדוד התחייבות בלי הערכה). כדאי להקפיד שזה לא יחזור.
+          ⚠ {noEstimate} tasks with no Story Points — not counted toward goal attainment (can't measure commitment without an estimate). Worth avoiding going forward.
         </div>
       )}
     </div>

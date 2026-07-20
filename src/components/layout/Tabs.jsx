@@ -1,14 +1,15 @@
 export const TABS = [
-  { id: "sprint", label: "בריאות ספרינט" },
-  { id: "planning", label: "תכנון ספרינט" },
-  { id: "status", label: "סטטוס חי" },
-  { id: "impact", label: "ההשפעה שלי" },
-  { id: "recommendations", label: "המלצות" },
+  { id: "sprint", label: "Sprint Health" },
+  { id: "planning", label: "Sprint Planning" },
+  { id: "status", label: "Live Status" },
+  { id: "impact", label: "My Impact" },
+  { id: "recommendations", label: "Recommendations" },
+  { id: "eazybi", label: "eazyBI" },
 ];
 
 export function Tabs({ tab, onChange }) {
   return (
-    <nav className="tabs" role="tablist" aria-label="תצוגות">
+    <nav className="tabs" role="tablist" aria-label="Views">
       {TABS.map((t) => (
         <button key={t.id} role="tab" aria-selected={tab === t.id}
           className={"tab" + (tab === t.id ? " on" : "")} onClick={() => onChange(t.id)}>

@@ -10,7 +10,7 @@ export function TicketList({ rows }) {
           <span className="t-sum">{it.summary}</span>
           <span className="t-assignee">{it.avatar ? <img src={it.avatar} alt="" /> : <i className="ava" />}{it.assignee}</span>
           <span className="t-status">{it.status}</span>
-          {it.missing ? <span className="sp-miss">ללא SP</span> : <span className="sp-ok">{it.points} SP</span>}
+          {it.missing ? <span className="sp-miss">No SP</span> : <span className="sp-ok">{it.points} SP</span>}
         </a>
       ))}
     </div>

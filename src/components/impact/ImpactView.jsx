@@ -7,7 +7,7 @@ import { DevCard } from "../sprint/DevCard.jsx";
 import { ImpactStat } from "./ImpactStat.jsx";
 import { SprintTrendTable } from "./SprintTrendTable.jsx";
 
-const dt = (s) => (s ? new Date(s).toLocaleDateString("he-IL") : "—");
+const dt = (s) => (s ? new Date(s).toLocaleDateString("en-GB") : "—");
 const msOf = (s) => (s.startDate ? new Date(s.startDate).getTime() : null);
 
 export function ImpactView({ sprints, sprintIssuesById, sprintLoading, managerSince, mode = "points" }) {
@@ -23,8 +23,8 @@ export function ImpactView({ sprints, sprintIssuesById, sprintLoading, managerSi
   const since = averageSummaries(completed.filter((s) => msOf(s) >= boundaryMs));
   const live = summaries.find((s) => s.state === "active");
 
-  if (sprintLoading && !summaries.length) return <div className="banner load">טוען נתוני ספרינטים…</div>;
-  if (!summaries.length) return <div className="banner load">אין עדיין נתוני ספרינטים לחישוב.</div>;
+  if (sprintLoading && !summaries.length) return <div className="banner load">Loading sprint data…</div>;
+  if (!summaries.length) return <div className="banner load">No sprint data to calculate yet.</div>;
 
   // live sprint detail
   const liveObj = live && sprints.find((s) => s.id === live.id);
@@ -38,55 +38,56 @@ export function ImpactView({ sprints, sprintIssuesById, sprintLoading, managerSi
   return (
     <>
       <h2 className="bigtitle">
-        ההשפעה שלי
+        My Impact
         <span className="bigtitle-sub">
           {firstLeadSprint
-            ? <>מודדים החל מ‑{shortSprint(firstLeadSprint.name)} ({dt(firstLeadSprint.startDate)}) — הספרינט הראשון שלך כראש צוות</>
-            : "ממתין לספרינט פעיל"}
+            ? <>Measuring from {shortSprint(firstLeadSprint.name)} ({dt(firstLeadSprint.startDate)}) — your first sprint as team lead</>
+            : "Waiting for an active sprint"}
         </span>
       </h2>
 
       <Explainer>
-        <b>מה מוצג כאן:</b> השוואה בין מצב הצוות לפני שהפכת לראש צוות לבין מאז.
+        <b>What's shown here:</b> a comparison of the team's state before you became team lead vs. since.
         <ul>
-          <li>הגבול נקבע לפי תחילת הספרינט הראשון שלך כראש צוות (מוצג למעלה). אם ההובלה התחילה באמצע ספרינט, הספרינט שלפניו נכלל גם הוא כ"מאז", כדי לא לחתוך התחייבות של ספרינט באמצע.</li>
-          <li><b>בסיס</b> = ממוצע המדדים על פני הספרינטים שהושלמו <u>לפני</u> הספרינט הראשון שלך. <b>מאז</b> = ממוצע ספרינטים שהושלמו החל מהספרינט הראשון שלך (כולל).</li>
-          <li>ספרינט פעיל (בתהליך) <u>אינו</u> נכלל בממוצעים — הוא מוצג בנפרד ככרטיס "בתהליך", עד שייסגר.</li>
-          <li>ברגע שיסתיים ספרינט נוסף, צד ה"מאז" יתעדכן והדלתא תופיע/תתעדכן.</li>
-          <li>"עמידה ביעד" נמדדת לפי הבורר בראש הדף — Story Points או משימות שהושלמו.</li>
+          <li>The boundary is set by the start of your first sprint as team lead (shown above). If leadership started mid-sprint, the sprint before it is also included in "since," so as not to cut a sprint's commitment in half.</li>
+          <li><b>Baseline</b> = average of the metrics across sprints completed <u>before</u> your first sprint. <b>Since</b> = average of sprints completed from your first sprint onward (inclusive).</li>
+          <li>An active (in-progress) sprint is <u>not</u> included in the averages — it's shown separately as an "in progress" card, until it closes.</li>
+          <li>Once another sprint closes, the "since" side updates and the delta appears/updates.</li>
+          <li>"Goal attainment" is measured per the toggle at the top of the page — Story Points or tasks completed.</li>
+          <li><b>Median lead time</b> = workdays (weekends excluded) from a card's creation to its resolution — the full lifecycle, not clipped to one sprint. <b>Velocity</b> and <b>Items closed</b> are scoped to your team's roster (wherever they worked), not to a single project — so these aren't directly comparable to eazyBI's per-project Throughput Trend on the eazyBI tab, which counts everyone in the Widget & Engine project regardless of who's on your roster.</li>
         </ul>
       </Explainer>
-      <Card title="עד עכשיו מול מאז שאתה מוביל"
-        desc={`בסיס = ממוצע ${baseline ? baseline.count : 0} הספרינטים שהושלמו לפני שהובלת. מאז = ממוצע ${since ? since.count : 0} ספרינטים שהושלמו תחת ההובלה שלך. הספרינט הנוכחי בתהליך ואינו נכלל בממוצעים.`}>
+      <Card title="Before vs. since you've been leading"
+        desc={`Baseline = average of the ${baseline ? baseline.count : 0} sprints completed before you led. Since = average of ${since ? since.count : 0} sprints completed under your leadership. The current sprint is in progress and not included in the averages.`}>
         <div className="istats">
-          <ImpactStat label={`עמידה ביעד (ממוצע · ${mode === "completion" ? "משימות שהושלמו" : "Story Points"})`} before={baseline && baseline.attainment} after={since && since.attainment} unit="%" hint="ימדד כשיסתיים הספרינט הראשון שלך" />
-          <ImpactStat label="Velocity (SP לספרינט)" before={baseline && baseline.velocity} after={since && since.velocity} hint="ימדד כשיסתיים הספרינט הראשון שלך" />
-          <ImpactStat label="איטמים שנסגרו (לספרינט)" before={baseline && baseline.throughput} after={since && since.throughput} hint="ימדד כשיסתיים הספרינט הראשון שלך" />
-          <ImpactStat label="Lead time חציוני" before={baseline && baseline.lead} after={since && since.lead} unit="d" betterWhenLower hint="ימדד כשיסתיים הספרינט הראשון שלך" />
-          <ImpactStat label="Bug ratio" before={baseline && baseline.bug} after={since && since.bug} unit="%" betterWhenLower hint="ימדד כשיסתיים הספרינט הראשון שלך" />
+          <ImpactStat label={`Goal attainment (average · ${mode === "completion" ? "tasks completed" : "Story Points"})`} before={baseline && baseline.attainment} after={since && since.attainment} unit="%" hint="Will be measured once your first sprint ends" />
+          <ImpactStat label="Velocity (SP per sprint)" before={baseline && baseline.velocity} after={since && since.velocity} hint="Will be measured once your first sprint ends" />
+          <ImpactStat label="Items closed (per sprint)" before={baseline && baseline.throughput} after={since && since.throughput} hint="Will be measured once your first sprint ends" />
+          <ImpactStat label="Median lead time (workdays)" before={baseline && baseline.lead} after={since && since.lead} unit="d" betterWhenLower hint="Will be measured once your first sprint ends" />
+          <ImpactStat label="Bug ratio" before={baseline && baseline.bug} after={since && since.bug} unit="%" betterWhenLower hint="Will be measured once your first sprint ends" />
         </div>
         {!since && (
           <div className="estbanner ok" style={{ marginTop: 14 }}>
             <span className="estbanner-ic">i</span>
             <div>
-              <b>זהו הבסיס שלך</b>
-              <div className="muted small">עוד לא הסתיים ספרינט תחת ההובלה שלך. ברגע שהספרינט הנוכחי ייסגר, נשווה אותו לבסיס ונראה את הדלתא.</div>
+              <b>This is your baseline</b>
+              <div className="muted small">No sprint under your leadership has closed yet. Once the current sprint closes, we'll compare it to the baseline and show the delta.</div>
             </div>
           </div>
         )}
       </Card>
 
       {live && (
-        <Card title={`הספרינט הנוכחי (בתהליך) · ${shortSprint(live.name)}`}
-          desc="נתונים חלקיים — מתעדכנים עד סוף הספרינט. לא נכלל עדיין בהשוואת הבסיס.">
+        <Card title={`Current sprint (in progress) · ${shortSprint(live.name)}`}
+          desc="Partial data — updating until the end of the sprint. Not yet included in the baseline comparison.">
           <div className="kpis" style={{ marginBottom: 14 }}>
-            <Kpi label="התקדמות בזמן" value={elapsedPct != null ? `${elapsedPct}%` : "—"} hint="כמה מזמן הספרינט עבר" />
-            <Kpi label="נסגר עד כה"
-              value={mode === "completion" ? `${live.doneItems} / ${live.committedItems} משימות` : `${live.donePts} / ${live.committedPts} SP`}
-              hint={`${live.attainment}% מההתחייבות`} />
-            <Kpi label="איטמים שנסגרו" value={`${live.doneItems}/${live.totalItems}`} />
-            <Kpi label="קצב" value={elapsedPct != null ? (live.attainment >= elapsedPct ? "בקצב טוב" : "מאחורי הקצב") : "—"}
-              tone={elapsedPct != null ? (live.attainment >= elapsedPct ? "good" : "bad") : undefined} hint="התקדמות מול הזמן שעבר" />
+            <Kpi label="Time elapsed" value={elapsedPct != null ? `${elapsedPct}%` : "—"} hint="How much of the sprint has passed" />
+            <Kpi label="Closed so far"
+              value={mode === "completion" ? `${live.doneItems} / ${live.committedItems} tasks` : `${live.donePts} / ${live.committedPts} SP`}
+              hint={`${live.attainment}% of commitment`} />
+            <Kpi label="Items closed" value={`${live.doneItems}/${live.totalItems}`} />
+            <Kpi label="Pace" value={elapsedPct != null ? (live.attainment >= elapsedPct ? "On good pace" : "Behind pace") : "—"}
+              tone={elapsedPct != null ? (live.attainment >= elapsedPct ? "good" : "bad") : undefined} hint="Progress vs. time elapsed" />
           </div>
           <div className="devs">
             {liveRows.filter((r) => r.id !== "none").map((r) => <DevCard key={r.id} r={r} mode={mode} />)}
@@ -94,7 +95,7 @@ export function ImpactView({ sprints, sprintIssuesById, sprintLoading, managerSi
         </Card>
       )}
 
-      <Card title="מגמה לאורך הספרינטים" desc="כל ספרינט בנפרד — בסיס / מאז / נוכחי. לחיצה על שורה פותחת אותה.">
+      <Card title="Trend across sprints" desc="Each sprint on its own — baseline / since / current. Click a row to expand it.">
         <SprintTrendTable summaries={summaries} selectedId={live ? live.id : null} />
       </Card>
     </>

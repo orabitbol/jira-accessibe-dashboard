@@ -11,17 +11,17 @@ export function ImpactStat({ label, before, after, unit = "", betterWhenLower = 
       <div className="istat-label">{label}</div>
       <div className="istat-row">
         <div className="istat-side">
-          <div className="istat-cap">לפני</div>
+          <div className="istat-cap">Before</div>
           <div className="istat-val">{before != null ? before : "—"}<span className="istat-unit">{unit}</span></div>
         </div>
         <div className="istat-arrow">→</div>
         <div className="istat-side">
-          <div className="istat-cap">מאז</div>
+          <div className="istat-cap">Since</div>
           <div className="istat-val">{after != null ? after : "—"}<span className="istat-unit">{unit}</span></div>
         </div>
       </div>
-      {has && <div className={"istat-delta " + cls}>{arrow} {Math.abs(delta)}{unit} {flat ? "ללא שינוי" : improved ? "שיפור" : "ירידה"}</div>}
-      {!has && <div className="istat-delta muted">{hint || "אין עדיין מספיק נתונים"}</div>}
+      {has && <div className={"istat-delta " + cls}>{arrow} {Math.abs(delta)}{unit} {flat ? "No change" : improved ? "Improved" : "Declined"}</div>}
+      {!has && <div className="istat-delta muted">{hint || "Not enough data yet"}</div>}
     </div>
   );
 }

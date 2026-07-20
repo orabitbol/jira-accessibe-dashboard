@@ -34,31 +34,31 @@ export function PlanningView({ rows }) {
         <PeopleFilter roster={roster} selected={effective} myIds={myIds} onChange={setSel} />
       </FilterBar>
       <Explainer>
-        <b>מה מוצג כאן:</b> כל הכרטיסיות שכבר משויכות לספרינט שנבחר (כולל ספרינטים עתידיים), לפי האנשים שבחרת.
+        <b>What's shown here:</b> all tickets already assigned to the selected sprint (including future sprints), for the people you selected.
         <ul>
-          <li>המטרה: לראות ב‑pre‑planning מה עדיין חסר — בעיקר כרטיסיות <b>ללא Story Points</b>.</li>
-          <li>"ללא הערכה" = ל‑Story Points אין ערך (או 0). בלי הערכה אי אפשר לתכנן עומס או למדוד עמידה.</li>
-          <li>ספרינט עתידי מופיע בבורר רק אם כבר שויכו אליו כרטיסיות.</li>
+          <li>The goal: see in pre-planning what's still missing — mainly tickets <b>with no Story Points</b>.</li>
+          <li>"No estimate" = Story Points has no value (or 0). Without an estimate you can't plan load or measure attainment.</li>
+          <li>A future sprint only appears in the selector once tickets have already been assigned to it.</li>
         </ul>
       </Explainer>
       {!shown.length ? (
-        <div className="banner load">לא נבחרו אנשים, או שאין להם כרטיסיות בספרינט זה.</div>
+        <div className="banner load">No people selected, or they have no tickets in this sprint.</div>
       ) : (
         <>
           <EstimationBanner missing={st.missing} />
           <div className="kpis">
-            <Kpi label="כרטיסיות בספרינט" value={fmt(st.total)} />
-            <Kpi label="סך Story Points" value={fmt(st.points, 1)} />
-            <Kpi label="ללא הערכה" value={fmt(st.missing)} tone={st.missing ? "bad" : "good"} info="כרטיסיות בספרינט שאין להן Story Points — צריך להעריך אותן ב‑pre‑planning." />
-            <Kpi label="מפתחים" value={fmt(st.people)} />
+            <Kpi label="Tickets in sprint" value={fmt(st.total)} />
+            <Kpi label="Total Story Points" value={fmt(st.points, 1)} />
+            <Kpi label="No estimate" value={fmt(st.missing)} tone={st.missing ? "bad" : "good"} info="Tickets in the sprint with no Story Points — need to be estimated in pre-planning." />
+            <Kpi label="Developers" value={fmt(st.people)} />
           </div>
           {missing.length > 0 && (
-            <Card title="ממתינות להערכה" desc="כרטיסיות בספרינט שעדיין ללא Story Points.">
+            <Card title="Waiting on an estimate" desc="Tickets in the sprint still with no Story Points.">
               <TicketList rows={missing} />
             </Card>
           )}
-          <Card title="הוערכו" desc="כרטיסיות עם Story Points.">
-            {estimated.length ? <TicketList rows={estimated} /> : <div className="muted small">אין עדיין כרטיסיות מוערכות.</div>}
+          <Card title="Estimated" desc="Tickets with Story Points.">
+            {estimated.length ? <TicketList rows={estimated} /> : <div className="muted small">No estimated tickets yet.</div>}
           </Card>
         </>
       )}

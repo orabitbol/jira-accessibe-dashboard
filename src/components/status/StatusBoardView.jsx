@@ -47,22 +47,22 @@ export function StatusBoardView({ active }) {
     <>
       <FilterBar>
         <PeopleFilter roster={roster} selected={effective} myIds={myIds} onChange={setSel} />
-        <span className="muted small">מוצג ספרינט נוכחי בלבד (כמו הבורד).</span>
+        <span className="muted small">Showing the current sprint only (matches the board).</span>
       </FilterBar>
 
       <Explainer>
-        <b>מה מוצג כאן:</b> רק איטמים שנמצאים בספרינט הפעיל (כמו בבורד), לפי האנשים שבחרת.
+        <b>What's shown here:</b> only items in the active sprint (matching the board), for the people you selected.
         <ul>
-          <li><b>טרם התחיל</b> (אפור) — האיטם עדיין ב‑To Do. זה לא עיכוב, פשוט עוד לא נלקח.</li>
-          <li><b>בסיכון</b> (כתום) — עדיין ב‑To Do ונשארו ≤ {NOT_STARTED_FLAG_DAYS} ימים לספרינט, כך שסביר שלא ייסגר בזמן.</li>
-          <li><b>מתעכב / חסום</b> (אדום) — אחד מאלה: עבר ה‑Due date, חסום ע״י איטם אחר, תקוע מעל {STUCK_DAYS} ימים <u>בשלב עבודה</u> (In Progress / Code Review / QA…), או שהספרינט הסתיים והאיטם עוד פתוח.</li>
-          <li><b>"בעבודה"</b> רגיל לא מקבל תווית — ה‑status pill כבר מציין את השלב.</li>
+          <li><b>Not started</b> (gray) — the item is still in To Do. Not a delay, just not picked up yet.</li>
+          <li><b>At risk</b> (orange) — still in To Do with ≤ {NOT_STARTED_FLAG_DAYS} days left in the sprint, so it likely won't close in time.</li>
+          <li><b>Delayed / blocked</b> (red) — one of: past the Due date, blocked by another item, stuck over {STUCK_DAYS} days <u>in a working status</u> (In Progress / Code Review / QA…), or the sprint ended and the item is still open.</li>
+          <li>A plain <b>"in progress"</b> item gets no label — the status pill already shows the stage.</li>
         </ul>
-        <b>"כמה זמן בכל שלב":</b> מחושב מהיסטוריית הסטטוסים (changelog) של האיטם, ומודד <b>cycle time</b> — מהרגע שהעבודה התחילה בפועל (זמן ההמתנה ב‑To Do לא נכלל בבר, אך מצוין בנפרד).
-        <br /><b>"משימות מחוץ לספרינט":</b> איטמים פתוחים של אותו אדם שאינם בספרינט הנוכחי — מועמדים לשכחה.
-        <br /><span className="muted">הספים ניתנים לשינוי בקוד (metrics.js): STUCK_DAYS={STUCK_DAYS}, NOT_STARTED_FLAG_DAYS={NOT_STARTED_FLAG_DAYS}.</span>
+        <b>"Time in each stage":</b> computed from the item's status history (changelog), and measures <b>cycle time</b> — from the moment work actually started (To Do wait time isn't included in the bar, but is shown separately).
+        <br /><b>"Tasks outside the sprint":</b> open items for that same person that aren't in the current sprint — candidates for being forgotten.
+        <br /><span className="muted">Thresholds are configurable in code (metrics.js): STUCK_DAYS={STUCK_DAYS}, NOT_STARTED_FLAG_DAYS={NOT_STARTED_FLAG_DAYS}.</span>
       </Explainer>
-      {!groups.length && <div className="banner load">אין כרגע איטמים בספרינט הפעיל בהיקף שנבחר.</div>}
+      {!groups.length && <div className="banner load">No items currently in the active sprint for the selected scope.</div>}
       <div className="people">
         {groups.map((p) => <PersonCard key={p.name} person={p} />)}
       </div>

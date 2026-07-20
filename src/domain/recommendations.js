@@ -15,8 +15,8 @@ export function buildRecommendations({ active = [], resolved = [], openBugs = []
     if (missing.length) {
       recs.push({
         id: "estimation", severity: missing.length >= 5 ? "high" : "med",
-        title: `${missing.length} כרטיסיות בספרינט ללא הערכת Story Points`,
-        detail: "בלי הערכה אי אפשר לתכנן עומס נכון או למדוד עמידה ביעד. כדאי להשלים בפגישת ה‑pre‑planning.",
+        title: `${missing.length} sprint tickets missing Story Points`,
+        detail: "Without an estimate you can't plan load correctly or measure goal attainment. Worth completing in the next pre-planning session.",
         evidence: missing.slice(0, 8).map((n) => ({ label: n.key, url: n.webUrl })),
       });
     }
@@ -37,7 +37,7 @@ export function buildRecommendations({ active = [], resolved = [], openBugs = []
           sprint: p.sprint.name, state: p.sprint.state,
           committedAmount: mode === "completion" ? row.committedItems : row.committedPts,
           doneAmount: mode === "completion" ? row.doneItems : row.donePts,
-          unit: mode === "completion" ? "משימות" : "SP",
+          unit: mode === "completion" ? "tasks" : "SP",
           attainment: row.attainment,
           done: row.doneList, late: row.lateList, open: row.openItems, noEstimate: row.noEstimate,
         };
@@ -46,9 +46,9 @@ export function buildRecommendations({ active = [], resolved = [], openBugs = []
       .reverse(); // newest first
     recs.push({
       id: "recurring-" + d.id, severity: "high",
-      title: `${d.name} מסיים מתחת ליעד שוב ושוב`,
-      detail: `פספס את היעד ב‑${d.misses} מתוך ${d.closedCount} הספרינטים הסגורים (ממוצע ${d.avg}%). שווה שיחת 1:1 — לבדוק עומס, חסמים או התחייבות גדולה מדי, ולפצל משימות גדולות.`,
-      evidence: [`ממוצע עמידה ${d.avg}%`, `${d.misses}/${d.closedCount} פספוסים`],
+      title: `${d.name} keeps finishing below target`,
+      detail: `Missed the target in ${d.misses} of the last ${d.closedCount} closed sprints (avg ${d.avg}%). Worth a 1:1 — check for workload, blockers, or over-commitment, and consider splitting large tasks.`,
+      evidence: [`Average attainment ${d.avg}%`, `${d.misses}/${d.closedCount} misses`],
       details: { kind: "sprints", rows: breakdown },
     });
   }
@@ -61,17 +61,17 @@ export function buildRecommendations({ active = [], resolved = [], openBugs = []
     if (commitAvg > 0 && doneAvg / commitAvg < 0.8) {
       recs.push({
         id: "overcommit", severity: "med",
-        title: "הצוות מתחייב ליותר ממה שנסגר",
-        detail: `בממוצע מתחייבים ${commitAvg} SP אך נסגרים ${doneAvg} SP לספרינט. שקול להוריד את ההתחייבות ל‑~${doneAvg} SP כדי להגדיל צפיוּת ולעמוד ביעדים.`,
-        evidence: [`התחייבות ממוצעת ${commitAvg} SP`, `נסגר בממוצע ${doneAvg} SP`],
+        title: "The team commits to more than it closes",
+        detail: `On average, ${commitAvg} SP are committed but only ${doneAvg} SP close per sprint. Consider lowering commitment to ~${doneAvg} SP to improve predictability and hit targets.`,
+        evidence: [`Average commitment ${commitAvg} SP`, `Average closed ${doneAvg} SP`],
       });
     }
     if (commitAvg > 0 && addedAvg / commitAvg > 0.2) {
       recs.push({
         id: "scopecreep", severity: "med",
-        title: "הרבה עבודה נכנסת באמצע הספרינט",
-        detail: `בממוצע ${addedAvg} SP נוספים אחרי תחילת הספרינט. שקול buffer מתוכנן או lane נפרד לבקשות דחופות, כדי להגן על ההתחייבות.`,
-        evidence: [`${addedAvg} SP נוספים בממוצע באמצע`],
+        title: "A lot of work enters mid-sprint",
+        detail: `On average, ${addedAvg} SP are added after the sprint starts. Consider a planned buffer or a separate lane for urgent requests, to protect the commitment.`,
+        evidence: [`${addedAvg} SP added mid-sprint on average`],
       });
     }
   }
@@ -85,9 +85,9 @@ export function buildRecommendations({ active = [], resolved = [], openBugs = []
   if (openMineBugs >= 10 || bugRatio >= 40) {
     recs.push({
       id: "bugs", severity: openMineBugs >= 20 || bugRatio >= 60 ? "high" : "med",
-      title: "עומס באגים גבוה",
-      detail: `${openMineBugs} באגים פתוחים כרגע, ו‑${bugRatio}% מהעבודה שנסגרה ב‑30 הימים האחרונים היו באגים. שווה לשקול זמן ייעודי לאיכות / חיזוק בדיקות.`,
-      evidence: [`${openMineBugs} באגים פתוחים`, `${bugRatio}% bug ratio (30 ימים)`],
+      title: "High bug load",
+      detail: `${openMineBugs} bugs currently open, and ${bugRatio}% of work closed in the last 30 days was bugs. Worth considering dedicated time for quality / strengthening tests.`,
+      evidence: [`${openMineBugs} open bugs`, `${bugRatio}% bug ratio (30 days)`],
     });
   }
 
@@ -96,14 +96,14 @@ export function buildRecommendations({ active = [], resolved = [], openBugs = []
   if (stuck.length) {
     recs.push({
       id: "blocked", severity: "high",
-      title: `${stuck.length} איטמים תקועים או חסומים כרגע`,
-      detail: "אלה פוגעים ישירות ביכולת לסגור את הספרינט. שווה לטפל בהם ראשונים בדיילי הקרוב.",
+      title: `${stuck.length} items stuck or blocked right now`,
+      detail: "These directly hurt the ability to close the sprint. Worth addressing them first in the next daily.",
       evidence: stuck.slice(0, 8).map((a) => ({ label: `${a.key} — ${a.reasons[0]}`, url: a.webUrl })),
     });
   }
 
   if (!recs.length) {
-    recs.push({ id: "all-good", severity: "low", title: "הכול נראה תקין", detail: "לא זוהו דגלים אדומים בנתונים הזמינים כרגע. המשך כך.", evidence: [] });
+    recs.push({ id: "all-good", severity: "low", title: "Everything looks healthy", detail: "No red flags detected in the currently available data. Keep it up.", evidence: [] });
   }
   return recs.sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
 }

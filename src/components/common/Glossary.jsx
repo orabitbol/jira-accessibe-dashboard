@@ -1,21 +1,21 @@
 import { Explainer } from "./Explainer.jsx";
 
 const TERMS = [
-  ["Story Points (SP)", "הערכת מאמץ יחסית שהמפתח עצמו נותן למשימה."],
-  ["Velocity", "סך ה‑Story Points שהושלמו בתקופה / בספרינט."],
-  ["Throughput", "מספר האיטמים שהושלמו (ללא קשר ל‑SP)."],
-  ["Lead time", "מספר הימים מ‑Created (פתיחת האיטם) ועד Resolved — כולל זמן המתנה בבקלוג."],
-  ["Cycle time", "מהרגע שהעבודה התחילה בפועל ועד סגירה — בלי זמן ההמתנה ב‑To Do."],
-  ["עמידה ביעד (say/do)", "שתי שיטות מדידה בלתי-תלויות, לפי הבורר בראש הדף: לפי Story Points (SP שנסגרו ÷ SP שהתחייבו בתכנון), או לפי משימות שהושלמו (מספר משימות שנסגרו ÷ מספר משימות שהתחייבו בתכנון, ללא קשר ל‑SP)."],
-  ["Carry-over", "איטם שגלש מספרינט קודם (היה בכמה ספרינטים)."],
-  ["נוסף באמצע", "איטם שנוצר אחרי שהספרינט התחיל — לא היה בתכנון (scope creep)."],
-  ["Bug ratio", "אחוז הבאגים מתוך כלל האיטמים שנסגרו."],
-  ["מצבים", "טרם התחיל (ב‑To Do) · בסיכון (לא התחיל וזמן קצר לספרינט) · מתעכב/חסום (עבר יעד / חסום / תקוע בשלב עבודה)."],
+  ["Story Points (SP)", "A relative effort estimate the developer gives the task themselves."],
+  ["Velocity", "Total Story Points completed in a period / sprint."],
+  ["Throughput", "Number of items completed (regardless of SP)."],
+  ["Lead time", "Days from Created (item opened) to Resolved — including backlog wait time."],
+  ["Cycle time", "From the moment work actually started until closed — excluding To Do wait time."],
+  ["Goal attainment (say/do)", "Two independent measurement methods, per the toggle at the top of the page: by Story Points (SP closed ÷ SP committed at planning), or by tasks completed (number of tasks closed ÷ number of tasks committed at planning, regardless of SP)."],
+  ["Carry-over", "An item that spilled over from a previous sprint (was in more than one sprint)."],
+  ["Added mid-sprint", "An item created after the sprint started — wasn't in the plan (scope creep)."],
+  ["Bug ratio", "Percentage of bugs out of all items closed."],
+  ["States", "Not started (in To Do) · At risk (not started, little time left in sprint) · Delayed/blocked (past due / blocked / stuck in a working status)."],
 ];
 
 export function Glossary() {
   return (
-    <Explainer label="מילון מונחים">
+    <Explainer label="Glossary">
       <ul className="gloss">
         {TERMS.map(([t, d]) => <li key={t}><b>{t}:</b> {d}</li>)}
       </ul>

@@ -6,6 +6,57 @@ export const STUCK_DAYS = 5;          // time in ONE WORKING status longer than 
 export const NOT_STARTED_FLAG_DAYS = 2; // still in To Do with <= this many days left in sprint => "at risk"
 export const MISS_THRESHOLD = 0.8;    // delivered < 80% of committed => "missed"
 
+// Non-working days for "workdays" math — Sunday=0 ... Saturday=6 (JS Date#getDay).
+// Israeli work week: Sun–Thu, weekend = Fri+Sat. This is what Stage Analysis
+// uses to match eazyBI's own "workdays" cycle-time convention (eazyBI's
+// account-level calendar setting itself could not be independently verified —
+// no admin access to eazyBI's Source Data settings — so this is our best,
+// team-appropriate assumption; flagged in the eazyBI comparison notes).
+export const WEEKEND_DAYS = new Set([5, 6]); // Fri, Sat
+
+// ms of the [from,to) interval that fall on a workday — closed-form (full
+// weeks counted directly, at most a 6-day remainder walked), NOT a day-by-day
+// loop across the whole span. This matters: it's called both on sprint-sized
+// windows (Stage Analysis, a couple weeks) AND on a ticket's FULL lifetime
+// (My Impact's lead time, which for an old carried-over ticket can be months
+// or years) — a per-day loop over a multi-year span, or over bad/garbled
+// date data, would be slow enough to visibly freeze the page. This is O(1).
+export function workdayMs(fromMs, toMs) {
+  if (fromMs == null || toMs == null || !Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) return 0;
+
+  const workdaysPerWeek = 7 - WEEKEND_DAYS.size;
+  const dayStartOf = (t) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+  const isWorkday = (t) => !WEEKEND_DAYS.has(new Date(t).getDay());
+
+  const fromDayStart = dayStartOf(fromMs);
+  const toDayStart = dayStartOf(toMs);
+
+  if (fromDayStart === toDayStart) return isWorkday(fromMs) ? toMs - fromMs : 0;
+
+  let total = 0;
+  // Partial first day: [fromMs, end of that calendar day).
+  if (isWorkday(fromMs)) total += (fromDayStart + DAY) - fromMs;
+
+  // Full calendar days in between: [fromDayStart + DAY, toDayStart) — counted
+  // in whole weeks, plus at most a 6-day remainder (never the full span).
+  const fullDaysStart = fromDayStart + DAY;
+  const fullDaysCount = Math.round((toDayStart - fullDaysStart) / DAY);
+  if (fullDaysCount > 0) {
+    const startWeekday = new Date(fullDaysStart).getDay();
+    const fullWeeks = Math.floor(fullDaysCount / 7);
+    const remainder = fullDaysCount % 7;
+    total += fullWeeks * workdaysPerWeek * DAY;
+    for (let i = 0; i < remainder; i++) {
+      if (!WEEKEND_DAYS.has((startWeekday + i) % 7)) total += DAY;
+    }
+  }
+
+  // Partial last day: [toDayStart, toMs).
+  if (isWorkday(toDayStart)) total += toMs - toDayStart;
+
+  return total;
+}
+
 export const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 // Story Points: the team fills "Story Points" (customfield_10032); some older
@@ -33,11 +84,16 @@ export function latestSprint(issue) {
   if (!Array.isArray(arr) || !arr.length) return null;
   return arr.reduce((a, b) => (b && (!a || b.id > a.id) ? b : a), null);
 }
+// Workdays from creation to resolution (weekends excluded — same convention
+// as Stage Analysis, so "lead time" here and "cycle time" there don't quietly
+// use two different day-conventions for the same underlying idea).
 export function leadDays(issue) {
   const c = issue.fields && issue.fields.created;
   const r = issue.fields && issue.fields.resolutiondate;
   if (!c || !r) return null;
-  const d = (new Date(r) - new Date(c)) / DAY;
+  const cMs = new Date(c).getTime(), rMs = new Date(r).getTime();
+  if (rMs < cMs) return null;
+  const d = workdayMs(cMs, rMs) / DAY;
   return d >= 0 ? d : null;
 }
 export const shortSprint = (name) => String(name).replace(/Widget Engine /i, "").replace(/Sprint /i, "S");
@@ -83,6 +139,19 @@ export function sprintProgress(sprint, now = Date.now()) {
   const daysLeft = Math.ceil((end - now) / DAY);
   const done = sprint.state === "closed" || now > end;
   return { totalDays, elapsedDays, pct, daysLeft, done, dayNumber: Math.min(totalDays, Math.max(1, Math.ceil(elapsedMs / DAY))) };
+}
+
+// Workday-only counterpart to sprintProgress's elapsedDays, used specifically
+// to read Stage Analysis's workday figures against "how much of the sprint
+// has elapsed" on the SAME unit (workdays) — sprintProgress itself stays
+// calendar-based since the sprint clock/countdown is a calendar concept.
+export function sprintElapsedWorkdays(sprint, now = Date.now()) {
+  const start = ms(sprint && sprint.startDate);
+  if (start == null) return null;
+  const end = ms(sprint && (sprint.completeDate || sprint.endDate));
+  const clampedNow = end != null ? Math.min(now, end) : now;
+  if (clampedNow <= start) return 0;
+  return round(workdayMs(start, clampedNow) / DAY, 1);
 }
 
 // First sprint counted as "under your leadership" for the My Impact tab.
@@ -132,25 +201,25 @@ export function enrichBoard(issues, now = Date.now()) {
     const notStartedLate = notStarted && daysLeftSprint != null && daysLeftSprint >= 0 && daysLeftSprint <= NOT_STARTED_FLAG_DAYS;
 
     const reasons = [];
-    if (dueOver) reasons.push(`עבר Due date לפני ${Math.abs(remainingDays)} ימים`);
-    if (blockers.length) reasons.push(`חסום ע״י ${blockers.join(", ")}`);
-    if (stuckInWork) reasons.push(`תקוע ב"${statusName}" כבר ${inCurrentDays} ימים`);
-    if (sprintEnded) reasons.push("הספרינט הסתיים והאיטם עוד פתוח");
-    if (notStartedLate) reasons.push(`טרם התחיל ונשארו ${daysLeftSprint} ימים לספרינט`);
+    if (dueOver) reasons.push(`Past due date by ${Math.abs(remainingDays)}d`);
+    if (blockers.length) reasons.push(`Blocked by ${blockers.join(", ")}`);
+    if (stuckInWork) reasons.push(`Stuck in "${statusName}" for ${inCurrentDays}d`);
+    if (sprintEnded) reasons.push("Sprint ended and item is still open");
+    if (notStartedLate) reasons.push(`Not started, ${daysLeftSprint}d left in sprint`);
 
     let level = "ok";
     if (dueOver || blockers.length || stuckInWork || sprintEnded) level = "bad";
     else if (notStartedLate) level = "warn";
 
     let stateLabel = null, stateClass = null;
-    if (level === "bad") { stateClass = "bad"; stateLabel = blockers.length ? "חסום" : "מתעכב"; }
-    else if (level === "warn") { stateClass = "warn"; stateLabel = "בסיכון"; }
-    else if (notStarted) { stateClass = "neutral"; stateLabel = "טרם התחיל"; }
+    if (level === "bad") { stateClass = "bad"; stateLabel = blockers.length ? "Blocked" : "Delayed"; }
+    else if (level === "warn") { stateClass = "warn"; stateLabel = "At risk"; }
+    else if (notStarted) { stateClass = "neutral"; stateLabel = "Not started"; }
     // normal working items get no chip — the status pill already says it
 
     return {
       key: n.key, webUrl: n.webUrl, summary: f.summary,
-      assignee: f.assignee ? f.assignee.displayName : "לא משויך",
+      assignee: f.assignee ? f.assignee.displayName : "Unassigned",
       assigneeId: f.assignee ? f.assignee.accountId : "none",
       avatar: f.assignee && f.assignee.avatarUrls ? f.assignee.avatarUrls["24x24"] : null,
       team: teamForIssue(n), type: f.issuetype && f.issuetype.name, priority: f.priority && f.priority.name,
@@ -198,7 +267,7 @@ export function sprintCommitment(sprintIssues, sprint, mode = "points", now = Da
   const get = (a) => {
     const id = a ? a.accountId : "none";
     if (!people.has(id)) people.set(id, {
-      id, name: a ? a.displayName : "לא משויך", avatar: a && a.avatarUrls ? a.avatarUrls["24x24"] : null,
+      id, name: a ? a.displayName : "Unassigned", avatar: a && a.avatarUrls ? a.avatarUrls["24x24"] : null,
       committedPts: 0, addedPts: 0, donePts: 0, totalPts: 0, committedItems: 0,
       totalItems: 0, doneItems: 0, carryOver: 0, addedMid: 0, noEstimate: 0, openItems: [], doneList: [], lateList: [],
     });
@@ -263,7 +332,7 @@ export function sprintTickets(sprintIssues, sprint, onlyTeam = myTeam.name) {
     const item = {
       key: n.key, webUrl: n.webUrl, summary: f.summary, status: f.status && f.status.name,
       pts, missing: pts === 0, type: f.issuetype && f.issuetype.name,
-      assignee: f.assignee ? f.assignee.displayName : "לא משויך",
+      assignee: f.assignee ? f.assignee.displayName : "Unassigned",
     };
     if (inSprint) done.push(item);
     else if (doneNow) late.push(item);
@@ -404,7 +473,8 @@ export function statusDurations(transitions, createdISO, fallbackStatus, opts = 
   const created = new Date(createdISO).getTime();
   const windowStart = opts.windowStart != null ? opts.windowStart : created;
   const byStatus = {};
-  const clip = (a, b) => Math.max(0, Math.min(b, endRef) - Math.max(a, windowStart));
+  // Workday-only clip (excludes weekends) to match eazyBI's cycle-time convention.
+  const clip = (a, b) => workdayMs(Math.max(a, windowStart), Math.min(b, endRef));
   const add = (st, a, b) => { if (st) byStatus[st] = (byStatus[st] || 0) + clip(a, b); };
   const tr = [...(transitions || [])].sort((a, b) => new Date(a.at) - new Date(b.at));
   if (!tr.length) { add(fallbackStatus, created, endRef); return { byStatus, currentStatus: fallbackStatus, currentSince: created }; }
@@ -434,8 +504,11 @@ export function statusSegments(transitions, createdISO, fallbackStatus, now = Da
     if (last && last.status === s.status) last.to = s.to;
     else merged.push({ ...s });
   }
+  // `from`/`to` stay real calendar timestamps (milestone dates need them),
+  // but `days` is workdays — same convention as Stage Analysis, so the same
+  // ticket can't show two different day-counts in two different views.
   return merged
-    .map((s) => ({ status: s.status, from: s.from, to: s.to, days: round((s.to - s.from) / DAY, 1) }))
+    .map((s) => ({ status: s.status, from: s.from, to: s.to, days: round(workdayMs(s.from, s.to) / DAY, 1) }))
     .filter((s) => s.to - s.from > 0);
 }
 
@@ -541,14 +614,14 @@ export function stageStatsByPerson(issues, changelogByKey, sprint, now = Date.no
       if (r.fromId && !ownerNames[r.fromId]) ownerNames[r.fromId] = { name: r.fromName, avatar: null };
       if (r.toId && !ownerNames[r.toId]) ownerNames[r.toId] = { name: r.toName, avatar: null };
     }
-    const clip = (x, y) => Math.max(0, Math.min(y, endRef) - Math.max(x, windowStart));
+    const clip = (x, y) => workdayMs(Math.max(x, windowStart), Math.min(y, endRef));
     for (const seg of intersectSegments(statusRaw, ownerRaw)) {
       const dur2 = clip(seg.from, seg.to);
       if (dur2 <= 0) continue;
       if (NON_WORK_STATUSES.has(seg.a)) continue; // seg.a = status at that slice
       const ownerId = seg.b; // seg.b = owner (accountId) at that slice
       if (!ownerId || ownerId === "none") continue; // unassigned gap — nobody to credit
-      const info = ownerNames[ownerId] || { name: "לא ידוע", avatar: null };
+      const info = ownerNames[ownerId] || { name: "Unknown", avatar: null };
       const op = getPerson(ownerId, info.name, info.avatar);
       op.byStatus[seg.a] = (op.byStatus[seg.a] || 0) + dur2;
     }
@@ -556,9 +629,29 @@ export function stageStatsByPerson(issues, changelogByKey, sprint, now = Date.no
   return [...people.values()].map((p) => {
     const stages = Object.entries(p.byStatus).map(([status, m]) => ({ status, days: round(m / DAY, 1) })).filter((s) => s.days > 0).sort((a, b) => b.days - a.days);
     const total = round(stages.reduce((a, b) => a + b.days, 0), 1);
-    // Cycle time = time once work actually started (excludes To-Do/backlog wait).
-    const cycle = round(stages.filter((s) => !NOT_STARTED.has(s.status)).reduce((a, b) => a + b.days, 0), 1);
-    return { ...p, stages, total, cycleDays: cycle, cyclePerItem: p.items ? round(cycle / p.items, 1) : 0, excludedCount: p.excluded.length, changedCount: p.changed.length };
+    // Roll the detailed per-status stages up into eazyBI's own stage buckets
+    // (Development / Code Review / QA / Product Review / Release) so the two
+    // can be compared apples-to-apples. To-Do/Backlog (NOT_STARTED) and
+    // Blocked (PAUSED_STATUSES — the board groups it with pre-work, not
+    // active development) never get a bucket. Anything else genuinely
+    // unmapped (a status the board config didn't have at research time)
+    // falls into "Other active work" rather than silently vanishing, so this
+    // total can never quietly drift from `cycleDays` below.
+    const groupTotals = {};
+    let otherDays = 0;
+    for (const s of stages) {
+      if (NOT_STARTED.has(s.status) || PAUSED_STATUSES.has(s.status)) continue;
+      const g = stageGroupForStatus(s.status);
+      if (g) groupTotals[g] = (groupTotals[g] || 0) + s.days;
+      else otherDays += s.days;
+    }
+    const groups = STAGE_GROUPS.map((g) => ({ key: g.key, label: g.label, days: round(groupTotals[g.key] || 0, 1) })).filter((g) => g.days > 0);
+    if (otherDays > 0) groups.push({ key: "other", label: "Other active work", days: round(otherDays, 1) });
+    // Cycle time = time once work actually started — excludes To-Do/backlog
+    // wait and Blocked/paused time. Defined as the sum of `groups` (not
+    // filtered independently) so the two numbers can never disagree.
+    const cycle = round(groups.reduce((a, g) => a + g.days, 0), 1);
+    return { ...p, stages, groups, total, cycleDays: cycle, cyclePerItem: p.items ? round(cycle / p.items, 1) : 0, excludedCount: p.excluded.length, changedCount: p.changed.length };
   }).sort((a, b) => b.total - a.total);
 }
 
@@ -595,6 +688,67 @@ export const NOT_STARTED = new Set(["To Do", "Backlog", "Selected for Developmen
 // Extend this list if the workflow grows more dead-end statuses
 // (e.g. "Won't Do", "Duplicate", "Rejected").
 export const NON_WORK_STATUSES = new Set(["Archived"]);
+
+// Statuses the board itself treats as pre-work, not active development —
+// source: Engine & Widget board (id 397) → Board settings → Columns →
+// "Blocked" is mapped into the same "To Do" column as Open/To Do, not into
+// "In Progress". Excluded from cycle time for the same reason NOT_STARTED
+// is: paused/waiting time isn't work actually happening on the ticket.
+export const PAUSED_STATUSES = new Set(["Blocked"]);
+
+// Raw Jira statuses rolled up into eazyBI's own cycle-time stage buckets.
+// Derived from the same board's column mapping (Board settings → Columns,
+// checked 2026-07-20): "Research" shares the IN PROGRESS column with
+// "In Progress" → both are "Development"; "Ready for QA" + "In QA" share the
+// QA column; "Product review" + "Ready for release" share the PRE-RELEASE
+// column but eazyBI's own Workflow Distribution report tracks them as two
+// separate measures ("Product Review %" / "Release %"), so they're kept
+// separate here too. Statuses with no bucket (To Do, Blocked, Done, Archived)
+// intentionally have no active-work stage.
+//
+// NOTE: the Board settings page renders every status name in ALL CAPS
+// (a CSS text-transform, not the real value) — it already caused one real
+// mismatch here ("Product review" is lowercase in Jira, not "Product
+// Review"). stageGroupForStatus() below matches case-insensitively so a
+// future casing quirk like that one can't silently create an "unmapped"
+// status again.
+export const STAGE_GROUPS = [
+  { key: "development", label: "Development", statuses: ["Research", "In Progress"] },
+  { key: "codeReview", label: "Code Review", statuses: ["Code Review", "In Review"] },
+  { key: "qa", label: "QA", statuses: ["Ready for QA", "In QA", "QA"] },
+  { key: "productReview", label: "Product Review", statuses: ["Product Review", "Product review"] },
+  { key: "release", label: "Release", statuses: ["Ready for release", "Ready for Release"] },
+];
+export function stageGroupForStatus(status) {
+  const s = String(status || "").trim().toLowerCase();
+  if (!s) return null;
+  for (const g of STAGE_GROUPS) if (g.statuses.some((x) => x.toLowerCase() === s)) return g.key;
+  return null;
+}
+
+// Cross-project "also on their plate" signal — visibility only, never mixed
+// into the measured totals above. For each roster member, lists currently
+// ACTIVE tickets (statusCategory = In Progress, any project) that are NOT
+// already part of the scope being measured (`countedKeys`) — e.g. a WE-team
+// member who picked up a Portal ticket, or has other open WE items outside
+// this sprint. Lets a manager see when someone's real workload extends
+// beyond what this view measures, without diluting the measurement itself.
+export function otherWorkByPerson(activeIssues, members, countedKeys) {
+  const counted = new Set(countedKeys || []);
+  const out = new Map();
+  for (const m of members || []) out.set(m.id, []);
+  for (const n of activeIssues || []) {
+    const a = n.fields && n.fields.assignee;
+    if (!a || !out.has(a.accountId)) continue;
+    if (counted.has(n.key)) continue;
+    out.get(a.accountId).push({
+      key: n.key, webUrl: n.webUrl, summary: n.fields.summary,
+      project: n.fields.project && n.fields.project.key,
+      status: n.fields.status && n.fields.status.name,
+    });
+  }
+  return out;
+}
 
 // High-contrast, deterministic colors. Known statuses get hand-picked, very
 // distinct hues; anything else falls back to a distinct palette.

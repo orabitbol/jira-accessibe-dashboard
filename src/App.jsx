@@ -11,6 +11,7 @@ import { PlanningView } from "./components/planning/PlanningView.jsx";
 import { SprintHealthView } from "./components/sprint/SprintHealthView.jsx";
 import { ImpactView } from "./components/impact/ImpactView.jsx";
 import { RecommendationsView } from "./components/recommendations/RecommendationsView.jsx";
+import { EazyBiView } from "./components/eazybi/EazyBiView.jsx";
 import { Glossary } from "./components/common/Glossary.jsx";
 
 export default function App() {
@@ -24,19 +25,19 @@ export default function App() {
         attainmentMode={d.attainmentMode} onAttainmentModeChange={d.setAttainmentMode} />
       <Tabs tab={tab} onChange={setTab} />
 
-      {phase === "loading" && <div className="banner load">טוען נתונים מ‑Jira…</div>}
-      {phase === "error" && <div className="banner err">שגיאה: {error}</div>}
+      {phase === "loading" && <div className="banner load">Loading data from Jira…</div>}
+      {phase === "error" && <div className="banner err">Error: {error}</div>}
 
       {phase === "ready" && base && (
         <>
-          {error && <div className="banner err">שגיאה בטעינה: {error} — אם שינית קוד, נסה להריץ מחדש <code>npm run dev</code>.</div>}
+          {error && <div className="banner err">Error loading: {error} — if you changed code, try restarting <code>npm run dev</code>.</div>}
 
           {(tab === "sprint" || tab === "status") && (
             <FilterBar>
-              <label>ספרינט:</label>
+              <label>Sprint:</label>
               <select value={d.sprintId ?? ""} onChange={(e) => d.setSprintId(Number(e.target.value))}>
                 {d.sprints.slice().reverse().map((s) => (
-                  <option key={s.id} value={s.id}>{shortSprint(s.name)}{s.state === "active" ? " (נוכחי)" : ""}</option>
+                  <option key={s.id} value={s.id}>{shortSprint(s.name)}{s.state === "active" ? " (current)" : ""}</option>
                 ))}
               </select>
               {d.selectedSprint && <SprintMeta s={d.selectedSprint} />}
@@ -44,7 +45,7 @@ export default function App() {
           )}
 
           {(tab === "sprint" || tab === "status") && d.selectedSprint && (
-            <SprintClock sprint={d.selectedSprint} title={`${tab === "sprint" ? "בריאות ספרינט" : "סטטוס חי"} · ${shortSprint(d.selectedSprint.name)}`} />
+            <SprintClock sprint={d.selectedSprint} title={`${tab === "sprint" ? "Sprint Health" : "Live Status"} · ${shortSprint(d.selectedSprint.name)}`} />
           )}
 
           {tab === "impact" && (
@@ -67,6 +68,7 @@ export default function App() {
             />
           )}
           {tab === "status" && <StatusBoardView active={base.active} />}
+          {tab === "eazybi" && <EazyBiView />}
           {tab === "sprint" && (
             <SprintHealthView
               selectedSprint={d.selectedSprint}
@@ -77,27 +79,28 @@ export default function App() {
               stageLoading={d.stageLoading}
               onLoadStages={d.loadStages}
               mode={d.attainmentMode}
+              activeIssues={base.active}
             />
           )}
           {tab === "planning" && (
             <>
-              {d.openLoading && !d.openData && <div className="banner load">טוען כרטיסיות מ‑Jira…</div>}
-              {d.openData && !d.planSprints.length && <div className="banner load">לא נמצאו ספרינטים נוכחיים/עתידיים עם כרטיסיות משויכות.</div>}
+              {d.openLoading && !d.openData && <div className="banner load">Loading tickets from Jira…</div>}
+              {d.openData && !d.planSprints.length && <div className="banner load">No current/future sprints with assigned tickets found.</div>}
               {d.openData && d.planSprints.length > 0 && (() => {
                 const ps = d.planSprints.find((s) => s.id === d.planSprintId) || d.planSprints[0];
                 return (
                   <>
                     <FilterBar>
-                      <label>ספרינט:</label>
+                      <label>Sprint:</label>
                       <select value={d.planSprintId ?? ""} onChange={(e) => d.setPlanSprintId(Number(e.target.value))}>
                         {d.planSprints.map((s) => (
-                          <option key={s.id} value={s.id}>{shortSprint(s.name)}{s.state === "active" ? " (נוכחי)" : " (עתידי)"}</option>
+                          <option key={s.id} value={s.id}>{shortSprint(s.name)}{s.state === "active" ? " (current)" : " (future)"}</option>
                         ))}
                       </select>
                       {ps && <SprintMeta s={ps} />}
                     </FilterBar>
-                    <h2 className="bigtitle">תכנון ספרינט · {shortSprint(ps.name)}
-                      <span className="bigtitle-sub">{ps.state === "active" ? "ספרינט נוכחי" : "ספרינט עתידי"}</span>
+                    <h2 className="bigtitle">Sprint Planning · {shortSprint(ps.name)}
+                      <span className="bigtitle-sub">{ps.state === "active" ? "Current sprint" : "Future sprint"}</span>
                     </h2>
                     <PlanningView rows={planningRows(d.openData, ps.id)} />
                   </>
@@ -111,10 +114,10 @@ export default function App() {
       {phase === "ready" && <div className="glossary-wrap"><Glossary /></div>}
 
       <footer className="muted small">
-        מקור: Jira (קריאה בלבד). צוות לפי teams.config.js; שאר הצוותים לפי פרויקט. Story Points = ההערכה של המפתח.
-        "עמידה ביעד" נמדדת לפי הבורר בראש הדף: <b>Story Points</b> (SP שנסגרו ÷ SP שהיו בספרינט בתכנון) או <b>משימות שהושלמו</b>
-        (מספר המשימות שנסגרו ÷ מספר המשימות שהיו בתכנון, ללא קשר ל‑Story Points). משימות שנוספו באמצע מסומנות בנפרד ולא נספרות
-        בהתחייבות. עיכוב = עבר היעד / תקוע מעל 5 ימים / חסום. ניתוח שלבים נטען לפי דרישה מ‑changelog (רק הצוות שלך בספרינט הנבחר).
+        Source: Jira (read-only). Team per teams.config.js; other teams grouped by project. Story Points = the developer's own estimate.
+        "Goal attainment" is measured per the toggle at the top of the page: <b>Story Points</b> (SP closed ÷ SP committed at planning) or <b>tasks completed</b>
+        (number of tasks closed ÷ number of tasks committed at planning, regardless of Story Points). Tasks added mid-sprint are flagged separately and not counted
+        toward commitment. Delayed = past due / stuck over 5 days / blocked. Stage analysis is loaded on demand from the changelog (only your team, in the selected sprint).
       </footer>
     </div>
   );

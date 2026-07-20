@@ -11,21 +11,21 @@ export function PeopleFilter({ roster, selected, myIds, onChange }) {
   const sameSet = (a, ids) => a.size === ids.length && ids.every((id) => a.has(id));
   const isMine = sameSet(selected, myIds) && myIds.length > 0;
   const isAll = sameSet(selected, allIds) && allIds.length > 0;
-  const label = isMine ? "הצוות שלי" : isAll ? "כל האנשים" : selected.size === 0 ? "לא נבחרו" : `${selected.size} נבחרו`;
+  const label = isMine ? "My team" : isAll ? "Everyone" : selected.size === 0 ? "None selected" : `${selected.size} selected`;
   const toggle = (id) => { const n = new Set(selected); n.has(id) ? n.delete(id) : n.add(id); onChange(n); };
 
   return (
     <div className="pfilter" ref={ref}>
-      <span className="pf-label">אנשים:</span>
+      <span className="pf-label">People:</span>
       <button className="pfilter-btn" onClick={() => setOpen(!open)}>
         {label}<span className="caret">▾</span>
       </button>
       {open && (
         <div className="pfilter-pop">
           <div className="pfilter-presets">
-            <button onClick={() => onChange(new Set(myIds))}>הצוות שלי</button>
-            <button onClick={() => onChange(new Set(allIds))}>הכל</button>
-            <button onClick={() => onChange(new Set())}>נקה</button>
+            <button onClick={() => onChange(new Set(myIds))}>My team</button>
+            <button onClick={() => onChange(new Set(allIds))}>Everyone</button>
+            <button onClick={() => onChange(new Set())}>Clear</button>
           </div>
           <div className="pfilter-list">
             {roster.map((p) => (

@@ -4,9 +4,9 @@ import { attCell } from "../../utils/labels.js";
 import { TicketBreakdown } from "../common/TicketBreakdown.jsx";
 
 const SEV = {
-  high: ["טעון טיפול", "bad"],
-  med: ["לתשומת לב", "warn"],
-  low: ["מצוין", "ok"],
+  high: ["Needs attention", "bad"],
+  med: ["Worth noting", "warn"],
+  low: ["Great", "ok"],
 };
 
 export function RecommendationCard({ rec }) {
@@ -36,13 +36,13 @@ export function RecommendationCard({ rec }) {
       {hasBreakdown && (
         <>
           <button className="linkbtn" style={{ marginTop: 10 }} onClick={() => setOpen(!open)} aria-expanded={open}>
-            {open ? "הסתר פירוט" : "הצג איפה בדיוק ↓"}
+            {open ? "Hide breakdown" : "Show exactly where ↓"}
           </button>
           {open && (
             <div className="rec-breakdown table-scroll">
               <table>
                 <thead>
-                  <tr><th>ספרינט</th><th>התחייב</th><th>סגר</th><th>עמידה</th><th>סטטוס</th></tr>
+                  <tr><th>Sprint</th><th>Committed</th><th>Closed</th><th>Attainment</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   {rec.details.rows.map((r, i) => (
@@ -54,10 +54,10 @@ export function RecommendationCard({ rec }) {
                         <td className={r.state === "active" ? "" : attCell(r.attainment)}>{r.attainment}%</td>
                         <td>
                           {r.state === "active"
-                            ? <span className="pill active">בתהליך</span>
+                            ? <span className="pill active">In progress</span>
                             : r.attainment >= 80
-                              ? <span className="pill ok">עמד</span>
-                              : <span className="pill bad">פספס</span>}
+                              ? <span className="pill ok">Met</span>
+                              : <span className="pill bad">Missed</span>}
                         </td>
                       </tr>
                       {openSprint === i && (

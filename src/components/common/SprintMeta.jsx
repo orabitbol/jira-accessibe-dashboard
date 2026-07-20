@@ -6,11 +6,11 @@ export function SprintMeta({ s }) {
   const daysLeft = end ? Math.ceil((end - Date.now()) / DAY) : null;
   return (
     <span className="muted small sprintmeta">
-      {start && end ? `${start.toLocaleDateString("he-IL")} – ${end.toLocaleDateString("he-IL")}` : ""}
+      {start && end ? `${start.toLocaleDateString("en-GB")} – ${end.toLocaleDateString("en-GB")}` : ""}
       {s.state === "active" && daysLeft != null && (
-        <> · {daysLeft >= 0 ? `נשארו ${daysLeft} ימים` : `הסתיים לפני ${-daysLeft} ימים`}</>
+        <> · {daysLeft >= 0 ? `${daysLeft} days left` : `Ended ${-daysLeft} days ago`}</>
       )}
-      {s.state === "closed" && " · סגור"}
+      {s.state === "closed" && " · Closed"}
     </span>
   );
 }

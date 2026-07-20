@@ -17,7 +17,7 @@
 export const leadTeams = [
   {
     id: "we",
-    name: "צוות אור",
+    name: "Or's team",
     key: "WE",
     boardId: 397,
     managerSince: "2026-07-15",
@@ -30,7 +30,7 @@ export const leadTeams = [
   },
   {
     id: "shaul",
-    name: "צוות שאול",
+    name: "Shaul's team",
     key: "WE",
     boardId: 397,
     managerSince: "2026-06-15",

@@ -26,11 +26,11 @@ export function TaskCard({ it }) {
           {it.stateLabel && <span className={"state " + it.stateClass}>{it.stateLabel}</span>}
         </div>
         <div className="task-sum">{it.summary}</div>
-        <div className="task-meta muted small">בסטטוס {it.inCurrentDays}ד · גיל {it.ageDays}ד · {remainLabel(it)}</div>
+        <div className="task-meta muted small">In status {it.inCurrentDays}d · age {it.ageDays}d · {remainLabel(it)}</div>
         {it.reasons.length > 0 && <div className="reasons">{it.reasons.join(" · ")}</div>}
       </a>
       <button className="stages-toggle" onClick={toggle} aria-expanded={open}>
-        {open ? "הסתר שלבים" : "כמה זמן בכל שלב ▾"}
+        {open ? "Hide stages" : "Time in each stage ▾"}
       </button>
       {open && (
         cl === "loading" ? <div className="muted small stages-state">Loading history…</div>

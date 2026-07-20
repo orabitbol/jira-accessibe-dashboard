@@ -13,7 +13,7 @@ export function SprintClock({ sprint, title }) {
       <div className="sclock-title">{title}</div>
       <div className="sclock-track"><span className={"sclock-fill " + tone} style={{ width: `${p.pct}%` }} /></div>
       <div className={"sclock-days " + tone}>
-        {p.done ? "הספרינט הסתיים" : `יום ${p.dayNumber}/${p.totalDays} · נשארו ${Math.max(0, p.daysLeft)} ימים`}
+        {p.done ? "Sprint ended" : `Day ${p.dayNumber}/${p.totalDays} · ${Math.max(0, p.daysLeft)} days left`}
       </div>
     </div>
   );

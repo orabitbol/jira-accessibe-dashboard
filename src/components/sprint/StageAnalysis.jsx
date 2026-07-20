@@ -1,8 +1,39 @@
 import { useState } from "react";
 import { Card } from "../common/Card.jsx";
 import { StageBar } from "../charts/StageBar.jsx";
-import { round, sprintProgress } from "../../domain/metrics.js";
+import { StageGroupBar } from "../charts/StageGroupBar.jsx";
+import { round, sprintElapsedWorkdays, STAGE_GROUPS } from "../../domain/metrics.js";
 import { fmtDur, fmtDate } from "../../utils/format.js";
+
+const GROUP_LEGEND_CLASS = { development: "eb-dev", codeReview: "eb-review", qa: "eb-qa", productReview: "eb-product", release: "eb-release" };
+
+// Reveals tickets a person is also carrying OUTSIDE this Stage Analysis scope
+// (other projects, or other WE items outside this sprint) — visibility only,
+// never mixed into the numbers above, so real workload doesn't quietly "fall
+// between the chairs" just because it isn't part of what this view measures.
+function OtherWorkNote({ items }) {
+  const [open, setOpen] = useState(false);
+  if (!items || !items.length) return null;
+  return (
+    <div className="stage-otherwork">
+      <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open}
+        title="Current active work in other projects, or other WE items outside this sprint — as of today, not as of this sprint's dates">
+        {open ? "Hide" : `Also has ${items.length} active item${items.length > 1 ? "s" : ""} right now, outside this view`}
+      </button>
+      {open && (
+        <div className="tkbreak" style={{ marginTop: 6 }}>
+          {items.map((it) => (
+            <a key={it.key} className="tk" href={it.webUrl} target="_blank" rel="noreferrer">
+              <span className="tk-key">{it.key}</span>
+              <span className="tk-sum">{it.summary}</span>
+              <span className="tk-status">{it.project} · {it.status}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Small toggle revealing which tickets were left out of a person's stage
 // stats (e.g. Archived) and why — so "excluded" never means "hidden".
@@ -12,7 +43,7 @@ function ExcludedNote({ items }) {
   return (
     <div className="stage-excluded">
       <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open}>
-        {open ? "הסתר" : `הצג ${items.length} כרטיסים שהוצאו מהחישוב`}
+        {open ? "Hide" : `Show ${items.length} cards excluded from the calculation`}
       </button>
       {open && (
         <div className="tkbreak" style={{ marginTop: 6 }}>
@@ -72,7 +103,7 @@ function ChangedNote({ items }) {
   return (
     <div className="stage-changed">
       <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open}>
-        {open ? "הסתר" : `הצג ${items.length} כרטיסים שהשתנו באמצע הספרינט`}
+        {open ? "Hide" : `Show ${items.length} cards changed mid-sprint`}
       </button>
       {open && (
         <div className="chg-list">
@@ -93,12 +124,12 @@ function ChangedNote({ items }) {
                       <span className="chg-chip-wrap">
                         <Chip icon={<IconSwap />} className="swap" count={it.reassignments.length}
                           onExpand={it.reassignments.length > 1 ? () => toggle(id) : undefined}>
-                          <span dir="ltr">{r0.fromName} → {rN.toName}</span>
+                          <span>{r0.fromName} → {rN.toName}</span>
                         </Chip>
                         {expanded === id && (
                           <div className="chg-history">
                             {it.reassignments.map((r, i) => (
-                              <div key={i} className="chg-hline" dir="ltr">{r.fromName} → {r.toName} <span className="muted">· {fmtDate(r.at)}</span></div>
+                              <div key={i} className="chg-hline">{r.fromName} → {r.toName} <span className="muted">· {fmtDate(r.at)}</span></div>
                             ))}
                           </div>
                         )}
@@ -112,12 +143,12 @@ function ChangedNote({ items }) {
                       <span className="chg-chip-wrap">
                         <Chip icon={<IconGauge />} className="points" count={it.pointsChanges.length}
                           onExpand={it.pointsChanges.length > 1 ? () => toggle(id) : undefined}>
-                          <span dir="ltr">SP {p0.from ?? "—"} → {pN.to ?? "—"}</span>
+                          <span>SP {p0.from ?? "—"} → {pN.to ?? "—"}</span>
                         </Chip>
                         {expanded === id && (
                           <div className="chg-history">
                             {it.pointsChanges.map((c, i) => (
-                              <div key={i} className="chg-hline" dir="ltr">SP {c.from ?? "—"} → {c.to ?? "—"} <span className="muted">· {fmtDate(c.at)}</span></div>
+                              <div key={i} className="chg-hline">SP {c.from ?? "—"} → {c.to ?? "—"} <span className="muted">· {fmtDate(c.at)}</span></div>
                             ))}
                           </div>
                         )}
@@ -135,9 +166,9 @@ function ChangedNote({ items }) {
                         </Chip>
                         {expanded === id && (
                           <div className="chg-diff">
-                            <div className="chg-before"><span className="chg-label">לפני:</span> {first.from || "—"}</div>
-                            <div className="chg-after"><span className="chg-label">אחרי:</span> {last.to || "—"}</div>
-                            <div className="muted small" style={{ marginTop: 4 }}>{fmtDate(last.at)}{list.length > 1 ? ` · נערך ${list.length} פעמים` : ""}</div>
+                            <div className="chg-before"><span className="chg-label">Before:</span> {first.from || "—"}</div>
+                            <div className="chg-after"><span className="chg-label">After:</span> {last.to || "—"}</div>
+                            <div className="muted small" style={{ marginTop: 4 }}>{fmtDate(last.at)}{list.length > 1 ? ` · edited ${list.length} times` : ""}</div>
                           </div>
                         )}
                       </span>
@@ -160,21 +191,28 @@ export function StageAnalysis({ stages, loading, onLoad, sprint }) {
     const cycleSum = stages.reduce((a, p) => a + (p.cycleDays || 0), 0);
     if (items) cycleNote = round(cycleSum / items, 1);
   }
-  // How much of the sprint has elapsed so far — lets each duration below be
-  // read as "X% of the sprint that's already passed" instead of a bare
-  // number with no scale to judge it against.
-  const progress = sprint ? sprintProgress(sprint) : null;
+  // How many WORKDAYS of the sprint have elapsed so far — lets each workday
+  // duration below be read as "X% of the sprint's workdays that already
+  // passed" instead of a bare number with no scale to judge it against.
+  const elapsedWorkdays = sprint ? sprintElapsedWorkdays(sprint) : null;
   return (
-    <Card title="Stage Analysis — time per status (within the sprint)" desc="Per person, average time per item in the current sprint (not a single ticket's duration) — from the changelog. Loaded on demand.">
+    <Card title="Stage Analysis — time per status (within the sprint)" desc="Per person, average WORKDAYS per item in the current sprint (weekends excluded, matching eazyBI) — not a single ticket's duration. From the changelog, loaded on demand.">
       {!stages && !loading && <button className="refresh" onClick={onLoad}>Load stage analysis for this sprint</button>}
       {loading && <div className="banner load">Fetching status history {loading.done}/{loading.total}…</div>}
       {stages && (stages.length ? (
         <>
           {cycleNote != null && (
             <div className="muted small" style={{ marginBottom: 12 }}>
-              Average cycle time (work start → done, excluding To-Do wait): <b>{fmtDur(cycleNote)}</b> per item.
+              Average cycle time (work start → done, excluding To-Do/Blocked wait, workdays): <b>{fmtDur(cycleNote)}</b> per item.
             </div>
           )}
+          <div className="wf-legend" style={{ marginBottom: 12 }}>
+            {STAGE_GROUPS.map((g) => (
+              <span key={g.key} className="wf-legend-item" title={`Rolled up the same way as the eazyBI tab's "${g.label}" stage.`}>
+                <i className={"wf-dot " + GROUP_LEGEND_CLASS[g.key]} />{g.label}
+              </span>
+            ))}
+          </div>
           <div className="stage-people">
             {stages.map((p) => {
               const waited = round(p.total - p.cycleDays, 2);
@@ -187,34 +225,40 @@ export function StageAnalysis({ stages, loading, onLoad, sprint }) {
                     </div>
                     <div className="stage-stats">
                       <span className="stat">{p.items} items</span>
-                      <span className="stat work" title="ממוצע לכרטיס — לא הזמן של כרטיס בודד ולא סכום מצטבר">worked {fmtDur(p.items ? p.cycleDays / p.items : 0)}/item avg</span>
-                      <span className="stat wait" title="ממוצע לכרטיס — לא הזמן של כרטיס בודד ולא סכום מצטבר">waited {fmtDur(p.items ? waited / p.items : 0)}/item in To-Do</span>
+                      <span className="stat work" title="Average per item, workdays (weekends excluded) — not a single ticket's duration and not a cumulative sum">worked {fmtDur(p.items ? p.cycleDays / p.items : 0)}/item avg</span>
+                      <span className="stat wait" title="Average per item, workdays — not a single ticket's duration and not a cumulative sum">waited {fmtDur(p.items ? waited / p.items : 0)}/item in To-Do/Blocked</span>
                       {p.excludedCount > 0 && (
-                        <span className="stat archived" title="כרטיסים שהועברו לארכיון/בוטלו — לא נחשבים כעבודה ולכן לא נספרים כאן">
+                        <span className="stat archived" title="Cards moved to Archived/cancelled — not counted as work, so excluded here">
                           {p.excludedCount} archived — not counted
                         </span>
                       )}
                       {p.changedCount > 0 && (
-                        <span className="stat changed" title="הכרטיס עבר בין אנשים, ההערכה שלו השתנתה, או שהתוכן שלו נערך תוך כדי הספרינט — הזמן עדיין מחולק נכון בין מי שבאמת עבד עליו">
+                        <span className="stat changed" title="The card changed hands, its estimate changed, or its content was edited mid-sprint — time is still split correctly between whoever actually worked on it">
                           {p.changedCount} changed mid-sprint
                         </span>
                       )}
                     </div>
                   </div>
-                  {p.stages.length > 0 ? <StageBar stages={p.stages} items={p.items} elapsedDays={progress ? progress.elapsedDays : null} /> : (
+                  {p.groups && p.groups.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <StageGroupBar groups={p.groups} items={p.items} />
+                    </div>
+                  )}
+                  {p.stages.length > 0 ? <StageBar stages={p.stages} items={p.items} elapsedDays={elapsedWorkdays} /> : (
                     <div className="muted small">
                       {p.items === 0 && p.excludedCount === 0
-                        ? "אין משימות משויכות לאדם הזה בספרינט הזה."
-                        : "כל הכרטיסים של האדם הזה בספרינט הועברו לארכיון — אין נתוני עבודה להצגה."}
+                        ? "No tasks assigned to this person in this sprint."
+                        : "All of this person's cards in the sprint were archived — no work data to show."}
                     </div>
                   )}
                   <ExcludedNote items={p.excluded} />
                   <ChangedNote items={p.changed} />
+                  <OtherWorkNote items={p.otherWork} />
                 </div>
               );
             })}
           </div>
-          <div className="muted small stage-foot">רחף על מקטע לפרטים · המספרים הם ממוצע לכרטיס (לא סכום ולא כרטיס בודד) · מקווקו = To-Do (המתנה) · כרטיסים שהועברו לארכיון לא נכללים בחישוב · זמן עבודה מחולק לפי מי שבאמת החזיק בכרטיס בכל רגע</div>
+          <div className="muted small stage-foot">Hover a segment for details · numbers are average per card in workdays (weekends excluded, not a sum or a single card) · dashed = To-Do (waiting) · Blocked counts as waiting, not active work · archived cards are excluded from the calculation · work time is split by whoever actually held the card at each moment · "also has N active items" shows work outside this view's scope (other projects, or WE items outside this sprint) without affecting the numbers above</div>
         </>
       ) : <div className="muted small">No stage data for the team in this sprint.</div>)}
     </Card>

@@ -9,38 +9,38 @@ export function CommitmentTrend({ trend, recentSprints, sprintIssuesById = {}, m
   if (!trend.length) return null;
   const openSprint = recentSprints.find((s) => s.id === openId);
   const tickets = openSprint && sprintIssuesById[openId] ? sprintTickets(sprintIssuesById[openId], openSprint) : null;
-  const unit = mode === "completion" ? "משימות" : "Story Points";
+  const unit = mode === "completion" ? "tasks" : "Story Points";
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <h2>מגמת עמידה ביעדים (ספרינטים אחרונים)</h2>
-          <p className="desc">אחוז ה{mode === "completion" ? "משימות" : "Story Points"} שנסגרו מתוך מה שהתחייב כל מפתח בכל ספרינט (לפי {unit}).</p>
+          <h2>Goal attainment trend (recent sprints)</h2>
+          <p className="desc">Percent of {mode === "completion" ? "tasks" : "Story Points"} closed out of what each developer committed to each sprint (by {unit}).</p>
         </div>
-        <button className="linkbtn" onClick={() => setShowCalc(!showCalc)}>{showCalc ? "הסתר הסבר" : "איך זה מחושב?"}</button>
+        <button className="linkbtn" onClick={() => setShowCalc(!showCalc)}>{showCalc ? "Hide explanation" : "How is this calculated?"}</button>
       </div>
       {showCalc && (
         <div className="calcbox">
-          <b>איך מחושב אחוז העמידה (לפי {unit}):</b>
+          <b>How attainment % is calculated (by {unit}):</b>
           <ul>
-            <li>לכל ספרינט נלקחים רק האיטמים ששויכו לאותו ספרינט (לפי שדה ה‑Sprint ב‑Jira).</li>
-            <li><b>התחייבות</b> = סכום ה‑{unit} של איטמים שהיו בספרינט כבר בתכנון. איטם שנוצר אחרי תחילת הספרינט נחשב "נוסף באמצע" ואינו נספר בהתחייבות.</li>
-            <li><b>נסגרו</b> = סכום ה‑{unit} של איטמים שעברו ל‑Done בתוך זמן הספרינט (בספרינט סגור — עד תאריך הסגירה).</li>
-            <li><b>אחוז עמידה</b> = נסגרו ÷ התחייבות. ירוק ≥ 80%, צהוב 50–79%, אדום &lt; 50%.</li>
-            <li>"ממוצע" = ממוצע אחוזי העמידה על פני הספרינטים המוצגים.</li>
+            <li>For each sprint, only items assigned to that sprint are used (per Jira's Sprint field).</li>
+            <li><b>Committed</b> = sum of {unit} for items already in the sprint at planning time. An item created after the sprint started counts as "added mid-sprint" and is not counted toward commitment.</li>
+            <li><b>Closed</b> = sum of {unit} for items moved to Done within the sprint window (for a closed sprint — up to the close date).</li>
+            <li><b>Attainment %</b> = closed ÷ committed. Green ≥ 80%, yellow 50–79%, red &lt; 50%.</li>
+            <li>"Average" = the mean attainment % across the sprints shown.</li>
           </ul>
         </div>
       )}
       <div className="table-scroll">
         <table>
           <thead>
-            <tr><th>מפתח</th>{recentSprints.map((s) => (
+            <tr><th>Developer</th>{recentSprints.map((s) => (
               <th key={s.id}>
-                <button className={"th-btn" + (openId === s.id ? " on" : "")} onClick={() => setOpenId(openId === s.id ? null : s.id)} title="הצג כרטיסיות הספרינט">
+                <button className={"th-btn" + (openId === s.id ? " on" : "")} onClick={() => setOpenId(openId === s.id ? null : s.id)} title="Show this sprint's tickets">
                   {shortSprint(s.name)} ▾
                 </button>
               </th>
-            ))}<th>ממוצע</th><th>מגמה</th></tr>
+            ))}<th>Average</th><th>Trend</th></tr>
           </thead>
           <tbody>
             {trend.map((d) => (
@@ -52,8 +52,8 @@ export function CommitmentTrend({ trend, recentSprints, sprintIssuesById = {}, m
                 })}
                 <td className={d.avg == null ? "" : attCell(d.avg)}><b>{d.avg == null ? "—" : `${d.avg}%`}</b></td>
                 <td>{d.recurring
-                  ? <span className="dot warn" role="img" aria-label="לתשומת לב — עמידה נמוכה לאורך זמן" title="ממוצע עמידה נמוך לאורך כמה ספרינטים — אולי כדאי לבדוק עומס או חסמים">●</span>
-                  : <span className="dot ok" role="img" aria-label="עמידה יציבה ביעדים" title="עמידה יציבה ביעדים">●</span>}</td>
+                  ? <span className="dot warn" role="img" aria-label="Needs attention — low attainment over time" title="Low average attainment over several sprints — worth checking for workload or blockers">●</span>
+                  : <span className="dot ok" role="img" aria-label="Consistent goal attainment" title="Consistent goal attainment">●</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -62,12 +62,12 @@ export function CommitmentTrend({ trend, recentSprints, sprintIssuesById = {}, m
       {openSprint && (
         <div className="sprint-drill">
           <div className="sprint-drill-head">
-            <b>כרטיסיות בספרינט {shortSprint(openSprint.name)}</b>
-            <button className="linkbtn" onClick={() => setOpenId(null)}>סגור</button>
+            <b>Tickets in sprint {shortSprint(openSprint.name)}</b>
+            <button className="linkbtn" onClick={() => setOpenId(null)}>Close</button>
           </div>
           {tickets
             ? <TicketBreakdown done={tickets.done} late={tickets.late} open={tickets.open} noEstimate={tickets.noEstimate} showAssignee />
-            : <div className="muted small">אין נתונים לספרינט זה.</div>}
+            : <div className="muted small">No data for this sprint.</div>}
         </div>
       )}
     </div>
