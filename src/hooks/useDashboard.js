@@ -16,8 +16,10 @@ export function useDashboard() {
   const [sprintId, setSprintId] = usePersistentState("we.sprintId", null);
   const [planSprintId, setPlanSprintId] = usePersistentState("we.planSprintId", null);
   const [managerSince, setManagerSince] = usePersistentState("we.managerSince", myTeam.managerSince);
-  // Which lens drives goal-attainment: "points" (Story Points) or "completion" (# tasks done).
-  const [attainmentMode, setAttainmentMode] = usePersistentState("we.attainmentMode", "points");
+  // Which lens drives goal-attainment: "points" (Story Points) or "completion"
+  // (# tasks done). Default is "completion" — simpler to reason about and
+  // doesn't get skewed by missing/inconsistent estimates.
+  const [attainmentMode, setAttainmentMode] = usePersistentState("we.attainmentMode", "completion");
 
   const [phase, setPhase] = useState("loading"); // loading | ready | error
   const [error, setError] = useState("");

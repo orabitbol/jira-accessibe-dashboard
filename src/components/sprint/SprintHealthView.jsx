@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { myTeam } from "../../../teams.config.js";
-import { sprintCommitment, commitmentTrend, stageStatsByPerson, round } from "../../domain/metrics.js";
+import { sprintCommitment, commitmentTrend, stageStatsByPerson, fillMissingMembers, round } from "../../domain/metrics.js";
 import { fmt } from "../../utils/format.js";
 import { Card } from "../common/Card.jsx";
 import { Kpi } from "../common/Kpi.jsx";
@@ -18,6 +18,19 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
       .filter((p) => p.rows.length);
     return commitmentTrend(per);
   }, [recentSprints, issuesById, mode]);
+  // Always show every declared team member — someone with zero items this
+  // sprint (e.g. a manager doing less hands-on work) shouldn't just vanish.
+  // NOTE: must run unconditionally (before the early returns below) — every
+  // hook in this component has to fire on every render, or React throws
+  // "Rendered more hooks than during the previous render".
+  const displayRows = useMemo(() => fillMissingMembers(rows, myTeam.members, (m) => ({
+    id: m.id, name: m.name, avatar: null,
+    committedPts: 0, addedPts: 0, donePts: 0, totalPts: 0, committedItems: 0,
+    totalItems: 0, doneItems: 0, carryOver: 0, addedMid: 0, noEstimate: 0,
+    openItems: [], doneList: [], lateList: [],
+    pointsAttainment: 0, completionAttainment: 0, pointsState: "none", completionState: "none",
+    attainment: 0, state: "none",
+  })), [rows]);
 
   if (loading && !issues) return <div className="banner load">טוען נתוני ספרינט…</div>;
   if (!issues) return <div className="banner load">אין נתונים לספרינט שנבחר.</div>;
@@ -32,9 +45,13 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
   const teamPct = teamCommitted ? Math.round((teamDone / teamCommitted) * 100) : 0;
   const teamUnit = isCompletion ? "משימות" : "SP";
 
-  const stages = stageData ? stageStatsByPerson(
-    issues.filter((n) => n.fields.assignee && myTeam.members.some((m) => m.id === n.fields.assignee.accountId)),
-    stageData.byKey, selectedSprint
+  const stages = stageData ? fillMissingMembers(
+    stageStatsByPerson(
+      issues.filter((n) => n.fields.assignee && myTeam.members.some((m) => m.id === n.fields.assignee.accountId)),
+      stageData.byKey, selectedSprint
+    ),
+    myTeam.members,
+    (m) => ({ id: m.id, name: m.name, avatar: null, byStatus: {}, items: 0, excluded: [], changed: [], stages: [], total: 0, cycleDays: 0, cyclePerItem: 0, excludedCount: 0, changedCount: 0 })
   ) : null;
 
   return (
@@ -64,14 +81,14 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
 
       <Card title="עמידה ביעדים לפי מפתח" desc={isCompletion ? "כמה משימות התחייב (בתכנון) מול כמה נסגרו. צבע = סטטוס מול קצב הספרינט." : "כמה Story Points התחייב (בתכנון) מול כמה נסגרו. צבע = סטטוס מול קצב הספרינט."}>
         <div className="devs">
-          {rows.filter((r) => r.id !== "none").map((r) => <DevCard key={r.id} r={r} mode={mode} />)}
-          {rows.some((r) => r.id === "none") && <DevCard r={rows.find((r) => r.id === "none")} mode={mode} />}
+          {displayRows.filter((r) => r.id !== "none").map((r) => <DevCard key={r.id} r={r} mode={mode} />)}
+          {displayRows.some((r) => r.id === "none") && <DevCard r={displayRows.find((r) => r.id === "none")} mode={mode} />}
         </div>
       </Card>
 
       <CommitmentTrend trend={trend} recentSprints={recentSprints} sprintIssuesById={issuesById} mode={mode} />
 
-      <StageAnalysis stages={stages} loading={stageLoading} onLoad={onLoadStages} />
+      <StageAnalysis stages={stages} loading={stageLoading} onLoad={onLoadStages} sprint={selectedSprint} />
     </>
   );
 }

@@ -19,4 +19,5 @@ export const STATE_LABEL = {
   behind: ["מאחר", "bad"],
   met: ["עמד ביעד", "ok"],
   missed: ["פספס", "bad"],
+  none: ["אין משימות", "neutral"],
 };

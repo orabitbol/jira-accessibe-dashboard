@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "../common/Card.jsx";
 import { StageBar } from "../charts/StageBar.jsx";
-import { round } from "../../domain/metrics.js";
+import { round, sprintProgress } from "../../domain/metrics.js";
 import { fmtDur, fmtDate } from "../../utils/format.js";
 
 // Small toggle revealing which tickets were left out of a person's stage
@@ -153,15 +153,19 @@ function ChangedNote({ items }) {
   );
 }
 
-export function StageAnalysis({ stages, loading, onLoad }) {
+export function StageAnalysis({ stages, loading, onLoad, sprint }) {
   let cycleNote = null;
   if (stages && stages.length) {
     const items = stages.reduce((a, p) => a + p.items, 0);
     const cycleSum = stages.reduce((a, p) => a + (p.cycleDays || 0), 0);
     if (items) cycleNote = round(cycleSum / items, 1);
   }
+  // How much of the sprint has elapsed so far — lets each duration below be
+  // read as "X% of the sprint that's already passed" instead of a bare
+  // number with no scale to judge it against.
+  const progress = sprint ? sprintProgress(sprint) : null;
   return (
-    <Card title="Stage Analysis — time per status (within the sprint)" desc="Total time the team's items spent in each status during the current sprint (from the changelog). Loaded on demand.">
+    <Card title="Stage Analysis — time per status (within the sprint)" desc="Per person, average time per item in the current sprint (not a single ticket's duration) — from the changelog. Loaded on demand.">
       {!stages && !loading && <button className="refresh" onClick={onLoad}>Load stage analysis for this sprint</button>}
       {loading && <div className="banner load">Fetching status history {loading.done}/{loading.total}…</div>}
       {stages && (stages.length ? (
@@ -183,8 +187,8 @@ export function StageAnalysis({ stages, loading, onLoad }) {
                     </div>
                     <div className="stage-stats">
                       <span className="stat">{p.items} items</span>
-                      <span className="stat work">worked {fmtDur(p.cycleDays)}</span>
-                      <span className="stat wait">waited {fmtDur(waited)} in To-Do</span>
+                      <span className="stat work" title="ממוצע לכרטיס — לא הזמן של כרטיס בודד ולא סכום מצטבר">worked {fmtDur(p.items ? p.cycleDays / p.items : 0)}/item avg</span>
+                      <span className="stat wait" title="ממוצע לכרטיס — לא הזמן של כרטיס בודד ולא סכום מצטבר">waited {fmtDur(p.items ? waited / p.items : 0)}/item in To-Do</span>
                       {p.excludedCount > 0 && (
                         <span className="stat archived" title="כרטיסים שהועברו לארכיון/בוטלו — לא נחשבים כעבודה ולכן לא נספרים כאן">
                           {p.excludedCount} archived — not counted
@@ -197,8 +201,12 @@ export function StageAnalysis({ stages, loading, onLoad }) {
                       )}
                     </div>
                   </div>
-                  {p.stages.length > 0 ? <StageBar stages={p.stages} /> : (
-                    <div className="muted small">כל הכרטיסים של האדם הזה בספרינט הועברו לארכיון — אין נתוני עבודה להצגה.</div>
+                  {p.stages.length > 0 ? <StageBar stages={p.stages} items={p.items} elapsedDays={progress ? progress.elapsedDays : null} /> : (
+                    <div className="muted small">
+                      {p.items === 0 && p.excludedCount === 0
+                        ? "אין משימות משויכות לאדם הזה בספרינט הזה."
+                        : "כל הכרטיסים של האדם הזה בספרינט הועברו לארכיון — אין נתוני עבודה להצגה."}
+                    </div>
                   )}
                   <ExcludedNote items={p.excluded} />
                   <ChangedNote items={p.changed} />
@@ -206,7 +214,7 @@ export function StageAnalysis({ stages, loading, onLoad }) {
               );
             })}
           </div>
-          <div className="muted small stage-foot">רחף על מקטע לפרטים · מקווקו = To-Do (המתנה) · כרטיסים שהועברו לארכיון לא נכללים בחישוב · זמן עבודה מחולק לפי מי שבאמת החזיק בכרטיס בכל רגע</div>
+          <div className="muted small stage-foot">רחף על מקטע לפרטים · המספרים הם ממוצע לכרטיס (לא סכום ולא כרטיס בודד) · מקווקו = To-Do (המתנה) · כרטיסים שהועברו לארכיון לא נכללים בחישוב · זמן עבודה מחולק לפי מי שבאמת החזיק בכרטיס בכל רגע</div>
         </>
       ) : <div className="muted small">No stage data for the team in this sprint.</div>)}
     </Card>

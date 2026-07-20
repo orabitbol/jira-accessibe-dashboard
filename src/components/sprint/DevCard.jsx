@@ -10,6 +10,7 @@ export function DevCard({ r, mode = "points" }) {
   const primaryBase = isCompletion ? (r.committedItems || r.totalItems) : (r.committedPts || r.totalPts);
   const primaryUnit = isCompletion ? "משימות" : "SP";
   const secondary = isCompletion ? `${r.donePts}/${r.committedPts || r.totalPts} SP` : `${r.doneItems}/${r.totalItems} איטמים`;
+  const noItems = r.totalItems === 0;
   return (
     <div className={"dev " + cls}>
       <div className="dev-head">
@@ -17,10 +18,16 @@ export function DevCard({ r, mode = "points" }) {
         <div className="dev-name">{r.name}</div>
         <span className={"pill " + cls}>{label}</span>
       </div>
-      <div className="dev-bar"><span style={{ width: `${pct}%` }} className={cls} /></div>
-      <div className="dev-nums">
-        <b>{primaryDone}</b> / {primaryBase} {primaryUnit} · {r.attainment}% · {secondary}
-      </div>
+      {noItems ? (
+        <div className="dev-nums muted">אין משימות משויכות בספרינט הזה</div>
+      ) : (
+        <>
+          <div className="dev-bar"><span style={{ width: `${pct}%` }} className={cls} /></div>
+          <div className="dev-nums">
+            <b>{primaryDone}</b> / {primaryBase} {primaryUnit} · {r.attainment}% · {secondary}
+          </div>
+        </>
+      )}
       <div className="dev-tags">
         {r.addedMid > 0 && <span className="tag">+{r.addedMid} נוספו באמצע ({r.addedPts} SP)</span>}
         {r.carryOver > 0 && <span className="tag warn">{r.carryOver} carry-over</span>}

@@ -5,6 +5,7 @@ import { Header } from "./components/layout/Header.jsx";
 import { Tabs } from "./components/layout/Tabs.jsx";
 import { FilterBar } from "./components/common/FilterBar.jsx";
 import { SprintMeta } from "./components/common/SprintMeta.jsx";
+import { SprintClock } from "./components/common/SprintClock.jsx";
 import { StatusBoardView } from "./components/status/StatusBoardView.jsx";
 import { PlanningView } from "./components/planning/PlanningView.jsx";
 import { SprintHealthView } from "./components/sprint/SprintHealthView.jsx";
@@ -43,10 +44,7 @@ export default function App() {
           )}
 
           {(tab === "sprint" || tab === "status") && d.selectedSprint && (
-            <h2 className="bigtitle">
-              {tab === "sprint" ? "בריאות ספרינט" : "סטטוס חי"} · {shortSprint(d.selectedSprint.name)}
-              <span className="bigtitle-sub"><SprintMeta s={d.selectedSprint} /></span>
-            </h2>
+            <SprintClock sprint={d.selectedSprint} title={`${tab === "sprint" ? "בריאות ספרינט" : "סטטוס חי"} · ${shortSprint(d.selectedSprint.name)}`} />
           )}
 
           {tab === "impact" && (

@@ -68,6 +68,23 @@ export function currentSprint(sprints) {
   return sprints[sprints.length - 1] || null;
 }
 
+// Where the sprint is right now — the shared timeline anchor every duration
+// on this page should be read against (e.g. "5 days in review" only means
+// something once you know whether 5 days is 10% or 80% of the sprint).
+export function sprintProgress(sprint, now = Date.now()) {
+  if (!sprint) return null;
+  const start = ms(sprint.startDate);
+  const end = ms(sprint.endDate);
+  if (start == null || end == null) return null;
+  const totalDays = Math.max(1, round((end - start) / DAY, 1));
+  const elapsedMs = clamp(now, start, end) - start;
+  const elapsedDays = round(elapsedMs / DAY, 1);
+  const pct = clamp(Math.round((elapsedMs / (end - start)) * 100), 0, 100);
+  const daysLeft = Math.ceil((end - now) / DAY);
+  const done = sprint.state === "closed" || now > end;
+  return { totalDays, elapsedDays, pct, daysLeft, done, dayNumber: Math.min(totalDays, Math.max(1, Math.ceil(elapsedMs / DAY))) };
+}
+
 // First sprint counted as "under your leadership" for the My Impact tab.
 // A leadership transition rarely lands exactly on a sprint boundary, so if
 // managerSince falls INSIDE a sprint's window, credit starts from the sprint
@@ -545,6 +562,19 @@ export function stageStatsByPerson(issues, changelogByKey, sprint, now = Date.no
   }).sort((a, b) => b.total - a.total);
 }
 
+// Ensure every declared team member shows up in a CURRENT-sprint view, even
+// with zero items — e.g. a manager who does little hands-on coding some
+// sprints shouldn't just vanish from the roster. `makeEmpty(member)` builds
+// the zero-stat placeholder shape expected by the specific view (DevCard row
+// vs Stage Analysis card). Intentionally NOT used for historical trend data
+// (commitmentTrend/sprintSummaries) — there, "no row" correctly means "no
+// data for that sprint" and forcing a 0% entry would be misleading.
+export function fillMissingMembers(rows, members, makeEmpty) {
+  const have = new Set(rows.map((r) => r.id));
+  const extra = (members || []).filter((m) => !have.has(m.id)).map(makeEmpty);
+  return [...rows, ...extra];
+}
+
 // Did this ticket change hands, get re-estimated, or have its content edited
 // mid-flight? Used for the "changed" badge + drill-down on ticket cards.
 // Purely derived from the same changelog already fetched for stage analysis
@@ -573,8 +603,10 @@ const STATUS_MAP = {
   "Backlog": "#64748b",
   "Selected for Development": "#0891b2",
   "In Progress": "#2563eb",      // blue
-  "Code Review": "#f97316",      // orange
-  "In Review": "#f97316",
+  // Deliberately calm, not alarm-orange/red: review time is usually waiting
+  // on someone ELSE (a reviewer), not a red flag on the assignee.
+  "Code Review": "#4338ca",      // indigo
+  "In Review": "#4338ca",
   "Ready for QA": "#eab308",     // amber/yellow
   "In QA": "#9333ea",            // purple
   "QA": "#9333ea",
