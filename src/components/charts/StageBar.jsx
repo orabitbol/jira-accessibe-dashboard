@@ -11,7 +11,7 @@ import { fmtDur } from "../../utils/format.js";
 // several tickets can add up to more days than the person has even worked at
 // the company, which reads as an impossible number for a single ticket; the
 // per-item average is always a realistic, bounded, comparable figure.
-export function StageBar({ stages, items = 1, elapsedDays = null }) {
+export function StageBar({ stages, items = 1, elapsedDays = null, t }) {
   const ordered = [...stages].sort((a, b) => {
     const aw = NOT_STARTED.has(a.status), bw = NOT_STARTED.has(b.status);
     if (aw !== bw) return aw ? -1 : 1;       // waiting first
@@ -29,13 +29,16 @@ export function StageBar({ stages, items = 1, elapsedDays = null }) {
         // Read against the sprint's own pace: "X days" only means something
         // once you know what fraction of the sprint has elapsed so far.
         const ofSprint = elapsedDays && elapsedDays > 0 ? Math.round((avgDays / elapsedDays) * 100) : null;
-        const suffix = wait ? " (waiting)" : paused ? " (blocked — not counted as active work)" : "";
+        // `s.status` itself is a raw Jira status name (data, not UI copy) —
+        // left untranslated on purpose, same as ticket keys/summaries
+        // elsewhere; only the surrounding UI-authored text is translated.
+        const suffix = wait ? t("stage.waitingSuffix") : paused ? t("stage.blockedSuffix") : "";
         return (
           <span key={i} className={"sseg" + (wait ? " wait" : "")}
             style={{ width: `${(s.days / total) * 100}%`, background: wait ? undefined : colorForStatus(s.status) }}>
             <span className="sseg-tip">
               <i style={{ background: wait ? "#cbd5e1" : colorForStatus(s.status) }} />
-              {s.status}{suffix} · {fmtDur(avgDays)}/item avg (workdays){ofSprint != null ? ` · ${ofSprint}% of the sprint's workdays so far` : ""}
+              {s.status}{suffix} · {fmtDur(avgDays)}{t("stage.perItemAvgWorkdays")}{ofSprint != null ? ` · ${ofSprint}${t("stage.pctOfSprintSoFar")}` : ""}
             </span>
           </span>
         );

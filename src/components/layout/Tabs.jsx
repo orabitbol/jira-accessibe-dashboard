@@ -1,19 +1,16 @@
-export const TABS = [
-  { id: "sprint", label: "Sprint Health" },
-  { id: "planning", label: "Sprint Planning" },
-  { id: "status", label: "Live Status" },
-  { id: "impact", label: "My Impact" },
-  { id: "recommendations", label: "Recommendations" },
-  { id: "eazybi", label: "eazyBI" },
-];
+const TAB_IDS = ["sprint", "planning", "status", "impact", "recommendations", "eazybi"];
+const TAB_KEY = {
+  sprint: "tabs.sprint", planning: "tabs.planning", status: "tabs.status",
+  impact: "tabs.impact", recommendations: "tabs.recommendations", eazybi: "tabs.eazybi",
+};
 
-export function Tabs({ tab, onChange }) {
+export function Tabs({ tab, onChange, t }) {
   return (
-    <nav className="tabs" role="tablist" aria-label="Views">
-      {TABS.map((t) => (
-        <button key={t.id} role="tab" aria-selected={tab === t.id}
-          className={"tab" + (tab === t.id ? " on" : "")} onClick={() => onChange(t.id)}>
-          {t.label}
+    <nav className="tabs" role="tablist" aria-label={t("tabs.aria")}>
+      {TAB_IDS.map((id) => (
+        <button key={id} role="tab" aria-selected={tab === id}
+          className={"tab" + (tab === id ? " on" : "")} onClick={() => onChange(id)}>
+          {t(TAB_KEY[id])}
         </button>
       ))}
     </nav>

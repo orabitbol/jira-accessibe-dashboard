@@ -4,7 +4,7 @@ import { sprintProgress } from "../../domain/metrics.js";
 // further down the page (Stage Analysis, commitment %, etc.) should be read
 // against this — so it stays pinned near the top instead of getting
 // forgotten by the time you scroll down.
-export function SprintClock({ sprint, title }) {
+export function SprintClock({ sprint, title, t }) {
   const p = sprint ? sprintProgress(sprint) : null;
   if (!p) return null;
   const tone = p.done ? "done" : p.daysLeft <= 2 ? "warn" : "ok";
@@ -13,7 +13,7 @@ export function SprintClock({ sprint, title }) {
       <div className="sclock-title">{title}</div>
       <div className="sclock-track"><span className={"sclock-fill " + tone} style={{ width: `${p.pct}%` }} /></div>
       <div className={"sclock-days " + tone}>
-        {p.done ? "Sprint ended" : `Day ${p.dayNumber}/${p.totalDays} · ${Math.max(0, p.daysLeft)} days left`}
+        {p.done ? t("sprintClock.ended") : t("sprintClock.day", { n: p.dayNumber, total: p.totalDays, left: Math.max(0, p.daysLeft) })}
       </div>
     </div>
   );

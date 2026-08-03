@@ -83,21 +83,27 @@ td.name { font-weight: 600; }
 .badge.bug { background: #ef4444; } .badge.story { background: #4f46e5; } .badge.task { background: #16a34a; }
 
 /* sprint health — per-person stage bars (each in its own clear row) */
-.stage-people { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
-.stage-row { border: 1px solid #e6e8ec; border-radius: 12px; padding: 13px 15px; background: #fff; }
-.stage-row-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; flex-wrap: wrap; }
-.stage-who { display: flex; align-items: center; gap: 9px; }
+.stage-people { display: flex; flex-direction: column; gap: 16px; margin-top: 6px; }
+.stage-row { border: 1px solid #e6e8ec; border-radius: 12px; padding: 16px 18px; background: #fff; }
+/* `.stage-who` (avatar/name/standard pill) and `.stage-stats` (the metric
+   badges) used to sit side-by-side on ONE row fighting for width, which is
+   what made this read as cramped — a long name plus 4-5 badges had nowhere
+   to go but wrap awkwardly. Stacking them (name row, then its own badge
+   row underneath) gives each its own full-width line to wrap within. */
+.stage-row-top { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.stage-who { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .stage-who img, .stage-who .ava { width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; flex: 0 0 auto; }
 .stage-name { font-weight: 700; font-size: 14px; }
-.stage-stats { display: flex; gap: 7px; flex-wrap: wrap; }
-.stage-stats .stat { font-size: 11.5px; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 3px 10px; }
+.stage-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.stage-stats .stat { font-size: 11.5px; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 4px 11px; line-height: 1.35; }
 .stage-stats .stat.work { background: #eef2ff; color: #4338ca; }
 .stage-stats .stat.wait { background: #f8fafc; color: #94a3b8; }
 .stage-stats .stat.archived { background: #f1f5f9; color: #64748b; font-style: italic; }
 .stage-stats .stat.changed { background: #fff7ed; color: #c2410c; }
+.stage-stats .stat.reopened { background: #fef3c7; color: #92400e; }
 .stage-row .sbar { height: 22px; }
 .stage-foot { margin-top: 14px; }
-.stage-excluded, .stage-changed, .stage-otherwork { margin-top: 9px; }
+.stage-excluded, .stage-changed, .stage-otherwork, .stage-reopened { margin-top: 9px; }
 
 /* compact "changed mid-sprint" list */
 .chg-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
@@ -129,29 +135,36 @@ td.name { font-weight: 600; }
 .sprintmeta { margin-inline-start: auto; }
 
 /* sprint health — dev cards */
-.devs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.dev { border: 1px solid #e6e8ec; border-radius: 12px; padding: 13px 14px; border-inline-start-width: 4px; }
+.devs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+.dev { border: 1px solid #e6e8ec; border-radius: 12px; padding: 16px 17px; border-inline-start-width: 4px; }
 .dev.ok { border-inline-start-color: #22c55e; } .dev.warn { border-inline-start-color: #f59e0b; } .dev.bad { border-inline-start-color: #ef4444; }
 .dev.neutral { border-inline-start-color: #cbd5e1; }
-.dev-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.dev-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
 .dev-head img, .dev-head .ava { width: 30px; height: 30px; border-radius: 50%; background: #e2e8f0; }
 .dev-name { font-weight: 700; font-size: 14px; }
 .dev-head .pill { margin-inline-start: auto; }
-.pill { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+.pill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 .pill.ok { background: #dcfce7; color: #166534; } .pill.warn { background: #fef3c7; color: #92400e; } .pill.bad { background: #fee2e2; color: #991b1b; }
 .pill.neutral { background: #f1f5f9; color: #64748b; }
-.dev-bar { height: 9px; background: #eef0f3; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+.dev-bar { height: 9px; background: #eef0f3; border-radius: 6px; overflow: hidden; margin-bottom: 9px; }
 .dev-bar span { display: block; height: 100%; background: #4f46e5; }
 .dev-bar span.ok { background: #22c55e; } .dev-bar span.warn { background: #f59e0b; } .dev-bar span.bad { background: #ef4444; }
 .dev-nums { font-size: 13px; font-weight: 600; }
-.dev-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
-.tag { font-size: 11px; background: #eef2ff; color: #3730a3; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+/* A top border + extra top margin separates "the headline numbers" from
+   "everything that qualifies them" (added/removed/reopened/carry-over) —
+   before, both sat right on top of each other with only 8px between them
+   and read as one crowded block. */
+.dev-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 11px; border-top: 1px dashed #eef0f3; align-items: center; }
+.tag { font-size: 11.5px; background: #eef2ff; color: #3730a3; padding: 4px 10px; border-radius: 7px; font-weight: 600; line-height: 1.35; }
 .tag.warn { background: #fef3c7; color: #92400e; }
+.tag-btn { border: 0; cursor: pointer; font-family: inherit; }
+.tag-btn:hover { filter: brightness(0.96); }
 .linkbtn { background: none; border: 0; color: #4f46e5; font-size: 12px; font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; }
-.openlist { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
-.openitem { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; font-size: 12px; border: 1px solid #eceef1; border-radius: 7px; padding: 5px 8px; }
+.openlist { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.openitem { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; font-size: 12px; border: 1px solid #eceef1; border-radius: 7px; padding: 6px 9px; }
 .openitem:hover { background: #fafbff; border-color: #c7d2fe; }
 .openitem .key { color: #6b7280; font-weight: 700; } .openitem .status { background: #eef0f3; color: #475569; padding: 0 7px; border-radius: 999px; font-size: 11px; }
+.openitem .status.sprintcount { background: #fef3c7; color: #92400e; }
 .openitem .sp { color: #4f46e5; font-weight: 700; } .openitem .osum { color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* commitment matrix cells */
@@ -229,6 +242,30 @@ td.cell-bad { background: #fee2e2; color: #991b1b; font-weight: 700; }
 .sseg-tip i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
 .sseg-tip::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1a1d24; }
 .sseg:hover .sseg-tip { display: inline-flex; }
+/* Same hover-tooltip treatment as .sseg-tip above, for StageGroupBar's
+   segments — so the two stacked bars in Stage Analysis behave identically
+   on hover instead of one having a styled tooltip and the other only a
+   native (and much less visible) title= tooltip. */
+.wf-seg { position: relative; }
+.wf-seg-tip {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  display: none; align-items: center; gap: 6px; white-space: nowrap;
+  background: #1a1d24; color: #fff; font-size: 11.5px; font-weight: 600;
+  padding: 5px 9px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.22); z-index: 10; pointer-events: none;
+}
+.wf-seg-tip::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1a1d24; }
+.wf-hoverable .wf-seg:hover .wf-seg-tip { display: inline-flex; }
+/* .sprint-cycle-bar sets overflow:hidden to clip square segment edges into
+   its own rounded pill shape — but that ALSO clips the tooltip popup above
+   it, which is why hovering the top bar looked like it had no tooltip at
+   all (the tooltip was rendering, just invisible, cut off by the parent).
+   Only .wf-hoverable (Stage Analysis's grouped bar) needs the popup to
+   escape, so it switches back to overflow:visible and re-applies the
+   rounded corners directly on the first/last segment instead — same trick
+   already used by .sbar/.sseg below for the per-status bar. */
+.wf-hoverable { overflow: visible; }
+.wf-hoverable .wf-seg:first-child { border-radius: 5px 0 0 5px; }
+.wf-hoverable .wf-seg:last-child { border-radius: 0 5px 5px 0; }
 .tstages-now { margin-top: 9px; font-size: 11.5px; color: #475569; display: flex; align-items: center; gap: 6px; }
 .dotnow { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
 

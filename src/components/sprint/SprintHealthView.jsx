@@ -9,9 +9,15 @@ import { DevCard } from "./DevCard.jsx";
 import { CommitmentTrend } from "./CommitmentTrend.jsx";
 import { StageAnalysis } from "./StageAnalysis.jsx";
 
-export function SprintHealthView({ selectedSprint, recentSprints, issuesById, loading, stageData, stageLoading, onLoadStages, mode = "points", activeIssues }) {
+export function SprintHealthView({ selectedSprint, recentSprints, issuesById, loading, stageData, stageLoading, onLoadStages, mode = "points", activeIssues, t }) {
   const issues = (selectedSprint && issuesById[selectedSprint.id]) || null;
-  const rows = useMemo(() => (issues ? sprintCommitment(issues, selectedSprint, mode) : []), [issues, selectedSprint, mode]);
+  // Real added/removed-mid-sprint detection needs each issue's "Sprint" field
+  // history — reuse whatever Stage Analysis has already loaded for THIS
+  // sprint (its own lazy changelog cache) rather than fetching it again.
+  // Before that button's been clicked, changelogByKey is just {} and
+  // sprintCommitment falls back to its old creation-date heuristic.
+  const changelogByKey = stageData && stageData.sprintId === selectedSprint?.id ? stageData.byKey : {};
+  const rows = useMemo(() => (issues ? sprintCommitment(issues, selectedSprint, mode, Date.now(), myTeam.name, changelogByKey) : []), [issues, selectedSprint, mode, changelogByKey]);
   const trend = useMemo(() => {
     const per = recentSprints
       .map((s) => ({ sprint: s, rows: issuesById[s.id] ? sprintCommitment(issuesById[s.id], s, mode) : [] }))
@@ -25,9 +31,10 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
   // "Rendered more hooks than during the previous render".
   const displayRows = useMemo(() => fillMissingMembers(rows, myTeam.members, (m) => ({
     id: m.id, name: m.name, avatar: null,
-    committedPts: 0, addedPts: 0, donePts: 0, totalPts: 0, committedItems: 0,
-    totalItems: 0, doneItems: 0, carryOver: 0, addedMid: 0, noEstimate: 0,
-    openItems: [], doneList: [], lateList: [],
+    committedPts: 0, addedPts: 0, removedPts: 0, donePts: 0, totalPts: 0, committedItems: 0,
+    totalItems: 0, doneItems: 0, carryOver: 0, addedMid: 0, removedItems: 0, noEstimate: 0,
+    addedDoneItems: 0, addedDonePts: 0, reopenedItems: 0,
+    openItems: [], doneList: [], lateList: [], removedList: [], addedDoneList: [], reopenedList: [], carryOverList: [],
     pointsAttainment: 0, completionAttainment: 0, pointsState: "none", completionState: "none",
     attainment: 0, state: "none",
   })), [rows]);
@@ -45,8 +52,8 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
   );
   const otherWork = useMemo(() => otherWorkByPerson(activeIssues, myTeam.members, scopedKeys), [activeIssues, scopedKeys]);
 
-  if (loading && !issues) return <div className="banner load">Loading sprint data…</div>;
-  if (!issues) return <div className="banner load">No data for the selected sprint.</div>;
+  if (loading && !issues) return <div className="banner load">{t("app.loading")}</div>;
+  if (!issues) return <div className="banner load">{t("trend.noData")}</div>;
 
   const teamCommittedPts = round(rows.reduce((a, r) => a + r.committedPts, 0), 1);
   const teamDonePts = round(rows.reduce((a, r) => a + r.donePts, 0), 1);
@@ -56,50 +63,57 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
   const teamCommitted = isCompletion ? teamCommittedItems : teamCommittedPts;
   const teamDone = isCompletion ? teamDoneItems : teamDonePts;
   const teamPct = teamCommitted ? Math.round((teamDone / teamCommitted) * 100) : 0;
-  const teamUnit = isCompletion ? "tasks" : "SP";
+  const teamUnit = isCompletion ? t("dev.unit.tasks") : t("dev.unit.sp");
 
   const scopedIssues = issues.filter((n) => n.fields.assignee && myTeam.members.some((m) => m.id === n.fields.assignee.accountId));
+  // Lets each Stage Analysis card show the SAME on-track/at-risk/behind pill
+  // as the Goal Attainment card above, so "is this person meeting the
+  // standard" doesn't require scrolling up and cross-referencing by name —
+  // the two sections agree because they're reading the exact same `rows`.
+  const commitmentById = new Map(displayRows.map((r) => [r.id, { state: r.state, attainment: r.attainment }]));
   const stages = stageData ? fillMissingMembers(
     stageStatsByPerson(scopedIssues, stageData.byKey, selectedSprint),
     myTeam.members,
-    (m) => ({ id: m.id, name: m.name, avatar: null, byStatus: {}, items: 0, excluded: [], changed: [], stages: [], groups: [], total: 0, cycleDays: 0, cyclePerItem: 0, excludedCount: 0, changedCount: 0 })
-  ).map((p) => ({ ...p, otherWork: otherWork.get(p.id) || [] })) : null;
+    (m) => ({ id: m.id, name: m.name, avatar: null, byStatus: {}, items: 0, excluded: [], changed: [], reopened: [], stages: [], groups: [], total: 0, cycleDays: 0, cyclePerItem: 0, excludedCount: 0, changedCount: 0, reopenedCount: 0 })
+  ).map((p) => ({ ...p, otherWork: otherWork.get(p.id) || [], commitment: commitmentById.get(p.id) || null })) : null;
 
   return (
     <>
-      <Explainer>
-        <b>What's shown here:</b> the selected sprint's state — how much each developer committed to vs. closed, and the trend across sprints.
+      <Explainer t={t}>
+        <b>{t("sprint.explainer.intro")}</b>
         <ul>
-          <li><b>Goal attainment (say/do)</b> is measured with two independent methods, per the toggle at the top of the page:
-            <b> by Story Points</b> = SP closed <u>within</u> the sprint ÷ SP committed at planning, or
-            <b> by tasks completed</b> = number of tasks closed ÷ number of tasks committed at planning (ignores Story Points entirely).</li>
-          <li>An item closed after the sprint ended is not counted toward this sprint.</li>
-          <li><b>Added mid-sprint</b> = an item created after the sprint started (wasn't in the plan) — not counted toward commitment.</li>
-          <li><b>Carry-over</b> = an item that came from a previous sprint (was in more than one sprint).</li>
-          <li>The state color (on track/at risk/behind) compares the developer's pace to the time elapsed in the sprint, per the selected method.</li>
-          <li>Under the Story Points method, tasks with no estimate aren't counted toward attainment (can't measure commitment without an estimate).</li>
+          <li>{t("sprint.explainer.attainment")}</li>
+          <li>{t("sprint.explainer.lateClose")}</li>
+          <li>{t("sprint.explainer.committed")}</li>
+          <li>{t("sprint.explainer.addedDoneCap")}</li>
+          <li>{t("sprint.explainer.reopened")}</li>
+          <li>{t("sprint.explainer.carryover")}</li>
+          <li>{t("sprint.explainer.pace")}</li>
+          <li>{t("sprint.explainer.noEstimate")}</li>
         </ul>
       </Explainer>
       <div className="kpis">
-        <Kpi label={selectedSprint && selectedSprint.state === "active" ? "Team progress (in progress)" : "Team progress in sprint"}
-          value={`${teamPct}%`} hint={`${teamDone} / ${teamCommitted} ${teamUnit} closed${selectedSprint && selectedSprint.state === "active" ? " · updating until the end" : ""}`}
+        <Kpi label={selectedSprint && selectedSprint.state === "active" ? t("sprint.kpi.progressActive") : t("sprint.kpi.progress")}
+          value={`${teamPct}%`} hint={t("sprint.kpi.progressHint", { done: teamDone, committed: teamCommitted, unit: teamUnit }) + (selectedSprint && selectedSprint.state === "active" ? t("sprint.kpi.updating") : "")}
           tone={selectedSprint && selectedSprint.state === "active" ? undefined : teamPct >= 80 ? "good" : teamPct >= 50 ? undefined : "bad"}
-          info={isCompletion ? "Number of tasks closed in the sprint ÷ number of tasks the team committed to at planning." : "Sum of SP closed in the sprint ÷ sum of SP the team committed to at planning."} />
-        <Kpi label="Active team members" value={rows.filter((r) => r.id !== "none").length} info="Number of developers with at least one item in the sprint." />
-        <Kpi label="Added mid-sprint" value={fmt(rows.reduce((a, r) => a + r.addedMid, 0))} hint={`${round(rows.reduce((a, r) => a + r.addedPts, 0), 1)} SP outside the plan`} info="Items created after the sprint started — a sign of scope creep. Not counted toward commitment." />
-        <Kpi label="Carry-over" value={fmt(rows.reduce((a, r) => a + r.carryOver, 0))} hint="Carried over from a previous sprint" info="Items that were already in a previous sprint and spilled over into this one." />
+          info={isCompletion ? t("sprint.kpi.progressInfoCompletion") : t("sprint.kpi.progressInfoPoints")} />
+        <Kpi label={t("sprint.kpi.activeMembers")} value={rows.filter((r) => r.id !== "none").length} info={t("sprint.kpi.activeMembersInfo")} />
+        <Kpi label={t("sprint.kpi.added")} value={fmt(rows.reduce((a, r) => a + r.addedMid, 0))} hint={t("sprint.kpi.addedHint", { sp: round(rows.reduce((a, r) => a + r.addedPts, 0), 1) })} info={t("sprint.kpi.addedInfo")} />
+        <Kpi label={t("sprint.kpi.removed")} value={fmt(rows.reduce((a, r) => a + r.removedItems, 0))} hint={t("sprint.kpi.removedHint", { sp: round(rows.reduce((a, r) => a + r.removedPts, 0), 1) })} info={t("sprint.kpi.removedInfo")} />
+        <Kpi label={t("sprint.kpi.carryover")} value={fmt(rows.reduce((a, r) => a + r.carryOver, 0))} hint={t("sprint.kpi.carryoverHint")} info={t("sprint.kpi.carryoverInfo")} />
+        <Kpi label={t("sprint.kpi.reopened")} value={fmt(rows.reduce((a, r) => a + r.reopenedItems, 0))} hint={t("sprint.kpi.reopenedHint")} info={t("sprint.kpi.reopenedInfo")} />
       </div>
 
-      <Card title="Goal attainment by developer" desc={isCompletion ? "How many tasks were committed (at planning) vs. how many closed. Color = status vs. sprint pace." : "How many Story Points were committed (at planning) vs. how many closed. Color = status vs. sprint pace."}>
+      <Card title={t("sprint.card.attainmentTitle")} desc={isCompletion ? t("sprint.card.attainmentDescCompletion") : t("sprint.card.attainmentDescPoints")}>
         <div className="devs">
-          {displayRows.filter((r) => r.id !== "none").map((r) => <DevCard key={r.id} r={r} mode={mode} />)}
-          {displayRows.some((r) => r.id === "none") && <DevCard r={displayRows.find((r) => r.id === "none")} mode={mode} />}
+          {displayRows.filter((r) => r.id !== "none").map((r) => <DevCard key={r.id} r={r} mode={mode} t={t} />)}
+          {displayRows.some((r) => r.id === "none") && <DevCard r={displayRows.find((r) => r.id === "none")} mode={mode} t={t} />}
         </div>
       </Card>
 
-      <CommitmentTrend trend={trend} recentSprints={recentSprints} sprintIssuesById={issuesById} mode={mode} />
+      <CommitmentTrend trend={trend} recentSprints={recentSprints} sprintIssuesById={issuesById} mode={mode} t={t} />
 
-      <StageAnalysis stages={stages} loading={stageLoading} onLoad={onLoadStages} sprint={selectedSprint} />
+      <StageAnalysis stages={stages} loading={stageLoading} onLoad={onLoadStages} sprint={selectedSprint} t={t} />
     </>
   );
 }

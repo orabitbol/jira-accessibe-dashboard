@@ -3,6 +3,7 @@ import { usePersistentState } from "./usePersistentState.js";
 import { fetchAll, fetchSprintIssues, fetchChangelogs } from "../services/jiraApi.js";
 import { myTeam, leadTeams, setActiveTeam } from "../../teams.config.js";
 import { myTeamSprints, currentSprint, planningSprints, defaultPlanningSprint } from "../domain/metrics.js";
+import { makeT, RTL_LANGS } from "../i18n.js";
 
 // Central orchestration: owns all dashboard state + data loading.
 export function useDashboard() {
@@ -20,6 +21,15 @@ export function useDashboard() {
   // (# tasks done). Default is "completion" — simpler to reason about and
   // doesn't get skewed by missing/inconsistent estimates.
   const [attainmentMode, setAttainmentMode] = usePersistentState("we.attainmentMode", "completion");
+  // UI language (he/en) — persisted the same way. Flips <html dir/lang> so
+  // Hebrew renders RTL without every component needing to know about it.
+  // Default is English; the toggle in the header switches to Hebrew.
+  const [lang, setLang] = usePersistentState("we.lang", "en");
+  useEffect(() => {
+    document.documentElement.dir = RTL_LANGS.has(lang) ? "rtl" : "ltr";
+    document.documentElement.lang = lang;
+  }, [lang]);
+  const t = useMemo(() => makeT(lang), [lang]);
 
   const [phase, setPhase] = useState("loading"); // loading | ready | error
   const [error, setError] = useState("");
@@ -142,5 +152,6 @@ export function useDashboard() {
     managerSince, setManagerSince,
     leadTeams, activeTeamId, setActiveTeamId,
     attainmentMode, setAttainmentMode,
+    lang, setLang, t,
   };
 }

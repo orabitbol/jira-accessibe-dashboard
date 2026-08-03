@@ -3,44 +3,45 @@ import { shortSprint, sprintTickets } from "../../domain/metrics.js";
 import { attCell } from "../../utils/labels.js";
 import { TicketBreakdown } from "../common/TicketBreakdown.jsx";
 
-export function CommitmentTrend({ trend, recentSprints, sprintIssuesById = {}, mode = "points" }) {
+export function CommitmentTrend({ trend, recentSprints, sprintIssuesById = {}, mode = "points", t }) {
   const [showCalc, setShowCalc] = useState(false);
   const [openId, setOpenId] = useState(null);
   if (!trend.length) return null;
   const openSprint = recentSprints.find((s) => s.id === openId);
   const tickets = openSprint && sprintIssuesById[openId] ? sprintTickets(sprintIssuesById[openId], openSprint) : null;
-  const unit = mode === "completion" ? "tasks" : "Story Points";
+  const isCompletion = mode === "completion";
+  const unit = isCompletion ? t("trend.unit.tasks") : t("trend.unit.sp");
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <h2>Goal attainment trend (recent sprints)</h2>
-          <p className="desc">Percent of {mode === "completion" ? "tasks" : "Story Points"} closed out of what each developer committed to each sprint (by {unit}).</p>
+          <h2>{t("trend.title")}</h2>
+          <p className="desc">{isCompletion ? t("trend.descCompletion") : t("trend.descPoints")}</p>
         </div>
-        <button className="linkbtn" onClick={() => setShowCalc(!showCalc)}>{showCalc ? "Hide explanation" : "How is this calculated?"}</button>
+        <button className="linkbtn" onClick={() => setShowCalc(!showCalc)}>{showCalc ? t("explainer.hide") : t("explainer.show")}</button>
       </div>
       {showCalc && (
         <div className="calcbox">
-          <b>How attainment % is calculated (by {unit}):</b>
+          <b>{t("trend.calcTitle", { unit })}</b>
           <ul>
-            <li>For each sprint, only items assigned to that sprint are used (per Jira's Sprint field).</li>
-            <li><b>Committed</b> = sum of {unit} for items already in the sprint at planning time. An item created after the sprint started counts as "added mid-sprint" and is not counted toward commitment.</li>
-            <li><b>Closed</b> = sum of {unit} for items moved to Done within the sprint window (for a closed sprint — up to the close date).</li>
-            <li><b>Attainment %</b> = closed ÷ committed. Green ≥ 80%, yellow 50–79%, red &lt; 50%.</li>
-            <li>"Average" = the mean attainment % across the sprints shown.</li>
+            <li>{t("trend.calc1")}</li>
+            <li>{t("trend.calc2", { unit })}</li>
+            <li>{t("trend.calc3", { unit })}</li>
+            <li>{t("trend.calc4")}</li>
+            <li>{t("trend.calc5")}</li>
           </ul>
         </div>
       )}
       <div className="table-scroll">
         <table>
           <thead>
-            <tr><th>Developer</th>{recentSprints.map((s) => (
+            <tr><th>{t("trend.developer")}</th>{recentSprints.map((s) => (
               <th key={s.id}>
-                <button className={"th-btn" + (openId === s.id ? " on" : "")} onClick={() => setOpenId(openId === s.id ? null : s.id)} title="Show this sprint's tickets">
+                <button className={"th-btn" + (openId === s.id ? " on" : "")} onClick={() => setOpenId(openId === s.id ? null : s.id)} title={t("trend.showTickets")}>
                   {shortSprint(s.name)} ▾
                 </button>
               </th>
-            ))}<th>Average</th><th>Trend</th></tr>
+            ))}<th>{t("trend.average")}</th><th>{t("trend.trend")}</th></tr>
           </thead>
           <tbody>
             {trend.map((d) => (
@@ -52,8 +53,8 @@ export function CommitmentTrend({ trend, recentSprints, sprintIssuesById = {}, m
                 })}
                 <td className={d.avg == null ? "" : attCell(d.avg)}><b>{d.avg == null ? "—" : `${d.avg}%`}</b></td>
                 <td>{d.recurring
-                  ? <span className="dot warn" role="img" aria-label="Needs attention — low attainment over time" title="Low average attainment over several sprints — worth checking for workload or blockers">●</span>
-                  : <span className="dot ok" role="img" aria-label="Consistent goal attainment" title="Consistent goal attainment">●</span>}</td>
+                  ? <span className="dot warn" role="img" aria-label={t("trend.needsAttention")} title={t("trend.needsAttention")}>●</span>
+                  : <span className="dot ok" role="img" aria-label={t("trend.consistent")} title={t("trend.consistent")}>●</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -62,12 +63,12 @@ export function CommitmentTrend({ trend, recentSprints, sprintIssuesById = {}, m
       {openSprint && (
         <div className="sprint-drill">
           <div className="sprint-drill-head">
-            <b>Tickets in sprint {shortSprint(openSprint.name)}</b>
-            <button className="linkbtn" onClick={() => setOpenId(null)}>Close</button>
+            <b>{t("trend.ticketsIn", { name: shortSprint(openSprint.name) })}</b>
+            <button className="linkbtn" onClick={() => setOpenId(null)}>{t("trend.close")}</button>
           </div>
           {tickets
             ? <TicketBreakdown done={tickets.done} late={tickets.late} open={tickets.open} noEstimate={tickets.noEstimate} showAssignee />
-            : <div className="muted small">No data for this sprint.</div>}
+            : <div className="muted small">{t("trend.noData")}</div>}
         </div>
       )}
     </div>

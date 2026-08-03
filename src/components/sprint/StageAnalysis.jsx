@@ -4,21 +4,27 @@ import { StageBar } from "../charts/StageBar.jsx";
 import { StageGroupBar } from "../charts/StageGroupBar.jsx";
 import { round, sprintElapsedWorkdays, STAGE_GROUPS } from "../../domain/metrics.js";
 import { fmtDur, fmtDate } from "../../utils/format.js";
+import { STATE_LABEL } from "../../utils/labels.js";
 
 const GROUP_LEGEND_CLASS = { development: "eb-dev", codeReview: "eb-review", qa: "eb-qa", productReview: "eb-product", release: "eb-release" };
+// Mirrors StageGroupBar's own mapping — STAGE_GROUPS (metrics.js) is shared,
+// non-UI data, so translated labels live here, keyed by g.key.
+const GROUP_I18N_KEY = {
+  development: "stagegroup.development", codeReview: "stagegroup.codeReview", qa: "stagegroup.qa",
+  productReview: "stagegroup.productReview", release: "stagegroup.release", other: "stagegroup.other",
+};
 
 // Reveals tickets a person is also carrying OUTSIDE this Stage Analysis scope
 // (other projects, or other WE items outside this sprint) — visibility only,
 // never mixed into the numbers above, so real workload doesn't quietly "fall
 // between the chairs" just because it isn't part of what this view measures.
-function OtherWorkNote({ items }) {
+function OtherWorkNote({ items, t }) {
   const [open, setOpen] = useState(false);
   if (!items || !items.length) return null;
   return (
     <div className="stage-otherwork">
-      <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open}
-        title="Current active work in other projects, or other WE items outside this sprint — as of today, not as of this sprint's dates">
-        {open ? "Hide" : `Also has ${items.length} active item${items.length > 1 ? "s" : ""} right now, outside this view`}
+      <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open} title={t("stage.otherWorkTitle")}>
+        {open ? t("dev.hideBtn") : t("stage.otherWorkShow", { n: items.length })}
       </button>
       {open && (
         <div className="tkbreak" style={{ marginTop: 6 }}>
@@ -37,13 +43,38 @@ function OtherWorkNote({ items }) {
 
 // Small toggle revealing which tickets were left out of a person's stage
 // stats (e.g. Archived) and why — so "excluded" never means "hidden".
-function ExcludedNote({ items }) {
+function ExcludedNote({ items, t }) {
   const [open, setOpen] = useState(false);
   if (!items || !items.length) return null;
   return (
     <div className="stage-excluded">
       <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open}>
-        {open ? "Hide" : `Show ${items.length} cards excluded from the calculation`}
+        {open ? t("dev.hideBtn") : t("stage.excludedShow", { n: items.length })}
+      </button>
+      {open && (
+        <div className="tkbreak" style={{ marginTop: 6 }}>
+          {items.map((it) => (
+            <a key={it.key} className="tk" href={it.webUrl} target="_blank" rel="noreferrer">
+              <span className="tk-key">{it.key}</span>
+              <span className="tk-sum">{it.summary}</span>
+              <span className="tk-status">{it.status}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Tickets that were marked Done and then moved back out — see wasReopened()
+// in metrics.js. Same reveal pattern as ExcludedNote/ChangedNote above.
+function ReopenedNote({ items, t }) {
+  const [open, setOpen] = useState(false);
+  if (!items || !items.length) return null;
+  return (
+    <div className="stage-reopened">
+      <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open}>
+        {open ? t("dev.hideBtn") : t("stage.showReopened", { n: items.length })}
       </button>
       {open && (
         <div className="tkbreak" style={{ marginTop: 6 }}>
@@ -94,7 +125,7 @@ function Chip({ icon, className, children, count, onExpand }) {
 // Each ticket is ONE compact line with small chips (Jira-style); a chip only
 // expands when there's more than a single event to show, so the common case
 // (one hop, one edit) never needs an extra click.
-function ChangedNote({ items }) {
+function ChangedNote({ items, t }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(null); // `${ticketKey}:${kind}` or null
   if (!items || !items.length) return null;
@@ -103,7 +134,7 @@ function ChangedNote({ items }) {
   return (
     <div className="stage-changed">
       <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open}>
-        {open ? "Hide" : `Show ${items.length} cards changed mid-sprint`}
+        {open ? t("dev.hideBtn") : t("stage.changedShow", { n: items.length })}
       </button>
       {open && (
         <div className="chg-list">
@@ -158,17 +189,17 @@ function ChangedNote({ items }) {
                   {Object.entries(byField).map(([field, list]) => {
                     const first = list[0], last = list[list.length - 1];
                     const id = it.key + ":" + field;
-                    const label = field === "summary" ? "Title" : "Description";
+                    const label = field === "summary" ? t("stage.titleEdited") : t("stage.descEdited");
                     return (
                       <span className="chg-chip-wrap" key={field}>
                         <Chip icon={<IconEdit />} className="content" count={list.length} onExpand={() => toggle(id)}>
-                          {label} edited
+                          {label}
                         </Chip>
                         {expanded === id && (
                           <div className="chg-diff">
-                            <div className="chg-before"><span className="chg-label">Before:</span> {first.from || "—"}</div>
-                            <div className="chg-after"><span className="chg-label">After:</span> {last.to || "—"}</div>
-                            <div className="muted small" style={{ marginTop: 4 }}>{fmtDate(last.at)}{list.length > 1 ? ` · edited ${list.length} times` : ""}</div>
+                            <div className="chg-before"><span className="chg-label">{t("stage.before")}</span> {first.from || "—"}</div>
+                            <div className="chg-after"><span className="chg-label">{t("stage.after")}</span> {last.to || "—"}</div>
+                            <div className="muted small" style={{ marginTop: 4 }}>{fmtDate(last.at)}{list.length > 1 ? ` · ${t("stage.editedTimes", { n: list.length })}` : ""}</div>
                           </div>
                         )}
                       </span>
@@ -184,7 +215,7 @@ function ChangedNote({ items }) {
   );
 }
 
-export function StageAnalysis({ stages, loading, onLoad, sprint }) {
+export function StageAnalysis({ stages, loading, onLoad, sprint, t }) {
   let cycleNote = null;
   if (stages && stages.length) {
     const items = stages.reduce((a, p) => a + p.items, 0);
@@ -196,20 +227,20 @@ export function StageAnalysis({ stages, loading, onLoad, sprint }) {
   // passed" instead of a bare number with no scale to judge it against.
   const elapsedWorkdays = sprint ? sprintElapsedWorkdays(sprint) : null;
   return (
-    <Card title="Stage Analysis — time per status (within the sprint)" desc="Per person, average WORKDAYS per item in the current sprint (weekends excluded, matching eazyBI) — not a single ticket's duration. From the changelog, loaded on demand.">
-      {!stages && !loading && <button className="refresh" onClick={onLoad}>Load stage analysis for this sprint</button>}
-      {loading && <div className="banner load">Fetching status history {loading.done}/{loading.total}…</div>}
+    <Card title={t("stage.title")} desc={t("stage.desc")}>
+      {!stages && !loading && <button className="refresh" onClick={onLoad}>{t("stage.loadBtn")}</button>}
+      {loading && <div className="banner load">{t("stage.fetching", { done: loading.done, total: loading.total })}</div>}
       {stages && (stages.length ? (
         <>
           {cycleNote != null && (
             <div className="muted small" style={{ marginBottom: 12 }}>
-              Average cycle time (work start → done, excluding To-Do/Blocked wait, workdays): <b>{fmtDur(cycleNote)}</b> per item.
+              {t("stage.avgCycleTimePrefix")} <b>{fmtDur(cycleNote)}</b> {t("stage.avgCycleTimeSuffix")}
             </div>
           )}
           <div className="wf-legend" style={{ marginBottom: 12 }}>
             {STAGE_GROUPS.map((g) => (
-              <span key={g.key} className="wf-legend-item" title={`Rolled up the same way as the eazyBI tab's "${g.label}" stage.`}>
-                <i className={"wf-dot " + GROUP_LEGEND_CLASS[g.key]} />{g.label}
+              <span key={g.key} className="wf-legend-item" title={t("stage.legendTitle", { label: t(GROUP_I18N_KEY[g.key]) })}>
+                <i className={"wf-dot " + GROUP_LEGEND_CLASS[g.key]} />{t(GROUP_I18N_KEY[g.key])}
               </span>
             ))}
           </div>
@@ -222,45 +253,54 @@ export function StageAnalysis({ stages, loading, onLoad, sprint }) {
                     <div className="stage-who">
                       {p.avatar ? <img src={p.avatar} alt="" /> : <span className="ava" />}
                       <span className="stage-name">{p.name}</span>
+                      {p.commitment && (
+                        <span className={"pill " + ((STATE_LABEL[p.commitment.state] || ["", ""])[1])} title={t("stage.commitmentPillTitle", { pct: p.commitment.attainment })}>
+                          {t(`state.${p.commitment.state}`)} · {p.commitment.attainment}%
+                        </span>
+                      )}
                     </div>
                     <div className="stage-stats">
-                      <span className="stat">{p.items} items</span>
-                      <span className="stat work" title="Average per item, workdays (weekends excluded) — not a single ticket's duration and not a cumulative sum">worked {fmtDur(p.items ? p.cycleDays / p.items : 0)}/item avg</span>
-                      <span className="stat wait" title="Average per item, workdays — not a single ticket's duration and not a cumulative sum">waited {fmtDur(p.items ? waited / p.items : 0)}/item in To-Do/Blocked</span>
+                      <span className="stat">{t("stage.itemsCount", { n: p.items })}</span>
+                      <span className="stat work" title={t("stage.workedTitle")}>{t("stage.workedLabel", { val: fmtDur(p.items ? p.cycleDays / p.items : 0) })}</span>
+                      <span className="stat wait" title={t("stage.waitedTitle")}>{t("stage.waitedLabel", { val: fmtDur(p.items ? waited / p.items : 0) })}</span>
                       {p.excludedCount > 0 && (
-                        <span className="stat archived" title="Cards moved to Archived/cancelled — not counted as work, so excluded here">
-                          {p.excludedCount} archived — not counted
+                        <span className="stat archived" title={t("stage.archivedTitle")}>
+                          {t("stage.archivedLabel", { n: p.excludedCount })}
                         </span>
                       )}
                       {p.changedCount > 0 && (
-                        <span className="stat changed" title="The card changed hands, its estimate changed, or its content was edited mid-sprint — time is still split correctly between whoever actually worked on it">
-                          {p.changedCount} changed mid-sprint
+                        <span className="stat changed" title={t("stage.changedTitle")}>
+                          {t("stage.changedLabel", { n: p.changedCount })}
+                        </span>
+                      )}
+                      {p.reopenedCount > 0 && (
+                        <span className="stat reopened" title={t("stage.reopenedTitle")}>
+                          {t("stage.reopenedLabel", { n: p.reopenedCount })}
                         </span>
                       )}
                     </div>
                   </div>
                   {p.groups && p.groups.length > 0 && (
                     <div style={{ marginBottom: 8 }}>
-                      <StageGroupBar groups={p.groups} items={p.items} />
+                      <StageGroupBar groups={p.groups} items={p.items} t={t} />
                     </div>
                   )}
-                  {p.stages.length > 0 ? <StageBar stages={p.stages} items={p.items} elapsedDays={elapsedWorkdays} /> : (
+                  {p.stages.length > 0 ? <StageBar stages={p.stages} items={p.items} elapsedDays={elapsedWorkdays} t={t} /> : (
                     <div className="muted small">
-                      {p.items === 0 && p.excludedCount === 0
-                        ? "No tasks assigned to this person in this sprint."
-                        : "All of this person's cards in the sprint were archived — no work data to show."}
+                      {p.items === 0 && p.excludedCount === 0 ? t("stage.noTasksPerson") : t("stage.allArchived")}
                     </div>
                   )}
-                  <ExcludedNote items={p.excluded} />
-                  <ChangedNote items={p.changed} />
-                  <OtherWorkNote items={p.otherWork} />
+                  <ExcludedNote items={p.excluded} t={t} />
+                  <ChangedNote items={p.changed} t={t} />
+                  <ReopenedNote items={p.reopened} t={t} />
+                  <OtherWorkNote items={p.otherWork} t={t} />
                 </div>
               );
             })}
           </div>
-          <div className="muted small stage-foot">Hover a segment for details · numbers are average per card in workdays (weekends excluded, not a sum or a single card) · dashed = To-Do (waiting) · Blocked counts as waiting, not active work · archived cards are excluded from the calculation · work time is split by whoever actually held the card at each moment · "also has N active items" shows work outside this view's scope (other projects, or WE items outside this sprint) without affecting the numbers above</div>
+          <div className="muted small stage-foot">{t("stage.footer")}</div>
         </>
-      ) : <div className="muted small">No stage data for the team in this sprint.</div>)}
+      ) : <div className="muted small">{t("stage.noData")}</div>)}
     </Card>
   );
 }

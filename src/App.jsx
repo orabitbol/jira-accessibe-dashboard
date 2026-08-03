@@ -16,36 +16,37 @@ import { Glossary } from "./components/common/Glossary.jsx";
 
 export default function App() {
   const d = useDashboard();
-  const { tab, setTab, phase, error, base, updatedAt, reload } = d;
+  const { tab, setTab, phase, error, base, updatedAt, reload, t } = d;
 
   return (
     <div className="wrap">
       <Header updatedAt={updatedAt} loading={phase === "loading"} onReload={reload}
         leadTeams={d.leadTeams} activeTeamId={d.activeTeamId} onTeamChange={d.setActiveTeamId}
-        attainmentMode={d.attainmentMode} onAttainmentModeChange={d.setAttainmentMode} />
-      <Tabs tab={tab} onChange={setTab} />
+        attainmentMode={d.attainmentMode} onAttainmentModeChange={d.setAttainmentMode}
+        lang={d.lang} onLangChange={d.setLang} t={t} />
+      <Tabs tab={tab} onChange={setTab} t={t} />
 
-      {phase === "loading" && <div className="banner load">Loading data from Jira…</div>}
-      {phase === "error" && <div className="banner err">Error: {error}</div>}
+      {phase === "loading" && <div className="banner load">{t("app.loadingData")}</div>}
+      {phase === "error" && <div className="banner err">{t("app.error")}: {error}</div>}
 
       {phase === "ready" && base && (
         <>
-          {error && <div className="banner err">Error loading: {error} — if you changed code, try restarting <code>npm run dev</code>.</div>}
+          {error && <div className="banner err">{t("app.errorLoading")}: {error} — {t("app.errorRestartHint")} <code>npm run dev</code>.</div>}
 
           {(tab === "sprint" || tab === "status") && (
             <FilterBar>
-              <label>Sprint:</label>
+              <label>{t("app.sprintLabel")}</label>
               <select value={d.sprintId ?? ""} onChange={(e) => d.setSprintId(Number(e.target.value))}>
                 {d.sprints.slice().reverse().map((s) => (
-                  <option key={s.id} value={s.id}>{shortSprint(s.name)}{s.state === "active" ? " (current)" : ""}</option>
+                  <option key={s.id} value={s.id}>{shortSprint(s.name)}{s.state === "active" ? ` ${t("app.current")}` : ""}</option>
                 ))}
               </select>
-              {d.selectedSprint && <SprintMeta s={d.selectedSprint} />}
+              {d.selectedSprint && <SprintMeta s={d.selectedSprint} t={t} />}
             </FilterBar>
           )}
 
           {(tab === "sprint" || tab === "status") && d.selectedSprint && (
-            <SprintClock sprint={d.selectedSprint} title={`${tab === "sprint" ? "Sprint Health" : "Live Status"} · ${shortSprint(d.selectedSprint.name)}`} />
+            <SprintClock sprint={d.selectedSprint} t={t} title={`${tab === "sprint" ? t("tabs.sprint") : t("tabs.status")} · ${shortSprint(d.selectedSprint.name)}`} />
           )}
 
           {tab === "impact" && (
@@ -80,27 +81,28 @@ export default function App() {
               onLoadStages={d.loadStages}
               mode={d.attainmentMode}
               activeIssues={base.active}
+              t={t}
             />
           )}
           {tab === "planning" && (
             <>
-              {d.openLoading && !d.openData && <div className="banner load">Loading tickets from Jira…</div>}
-              {d.openData && !d.planSprints.length && <div className="banner load">No current/future sprints with assigned tickets found.</div>}
+              {d.openLoading && !d.openData && <div className="banner load">{t("app.loadingTickets")}</div>}
+              {d.openData && !d.planSprints.length && <div className="banner load">{t("app.noFutureSprints")}</div>}
               {d.openData && d.planSprints.length > 0 && (() => {
                 const ps = d.planSprints.find((s) => s.id === d.planSprintId) || d.planSprints[0];
                 return (
                   <>
                     <FilterBar>
-                      <label>Sprint:</label>
+                      <label>{t("app.sprintLabel")}</label>
                       <select value={d.planSprintId ?? ""} onChange={(e) => d.setPlanSprintId(Number(e.target.value))}>
                         {d.planSprints.map((s) => (
-                          <option key={s.id} value={s.id}>{shortSprint(s.name)}{s.state === "active" ? " (current)" : " (future)"}</option>
+                          <option key={s.id} value={s.id}>{shortSprint(s.name)}{s.state === "active" ? ` ${t("app.current")}` : ` ${t("app.future")}`}</option>
                         ))}
                       </select>
-                      {ps && <SprintMeta s={ps} />}
+                      {ps && <SprintMeta s={ps} t={t} />}
                     </FilterBar>
-                    <h2 className="bigtitle">Sprint Planning · {shortSprint(ps.name)}
-                      <span className="bigtitle-sub">{ps.state === "active" ? "Current sprint" : "Future sprint"}</span>
+                    <h2 className="bigtitle">{t("app.sprintPlanning")} · {shortSprint(ps.name)}
+                      <span className="bigtitle-sub">{ps.state === "active" ? t("app.currentSprint") : t("app.futureSprint")}</span>
                     </h2>
                     <PlanningView rows={planningRows(d.openData, ps.id)} />
                   </>
@@ -111,13 +113,10 @@ export default function App() {
         </>
       )}
 
-      {phase === "ready" && <div className="glossary-wrap"><Glossary /></div>}
+      {phase === "ready" && <div className="glossary-wrap"><Glossary t={t} /></div>}
 
       <footer className="muted small">
-        Source: Jira (read-only). Team per teams.config.js; other teams grouped by project. Story Points = the developer's own estimate.
-        "Goal attainment" is measured per the toggle at the top of the page: <b>Story Points</b> (SP closed ÷ SP committed at planning) or <b>tasks completed</b>
-        (number of tasks closed ÷ number of tasks committed at planning, regardless of Story Points). Tasks added mid-sprint are flagged separately and not counted
-        toward commitment. Delayed = past due / stuck over 5 days / blocked. Stage analysis is loaded on demand from the changelog (only your team, in the selected sprint).
+        {t("app.footer")}
       </footer>
     </div>
   );

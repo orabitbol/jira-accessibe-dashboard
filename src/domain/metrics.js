@@ -79,6 +79,20 @@ const isDone = (issue) => {
   return !!(st && st.statusCategory && st.statusCategory.key === "done");
 };
 
+// Was this ticket ever moved BACK OUT of Done (found not actually finished,
+// a bug slipped through, etc.)? "Done" is the only statusCategory=done
+// status on this workflow (see the STATUS_MAP / colorForStatus comment
+// below), so a transition with `from === "Done"` is unambiguous — no
+// separate per-transition category data exists in Jira's changelog, so this
+// is the only way to tell without an extra API call. Purely a visibility
+// signal: it does NOT change committed/added/removed/done math anywhere —
+// isDone()/doneInSprint already reflect the ticket's CURRENT status, so a
+// reopened-and-still-open ticket already correctly shows as open, not done.
+// This just makes the fact that it regressed visible instead of silent.
+function wasReopened(cl) {
+  return !!(cl && Array.isArray(cl.transitions) && cl.transitions.some((tr) => tr.from === "Done"));
+}
+
 export function latestSprint(issue) {
   const arr = issue.fields && issue.fields.customfield_10020;
   if (!Array.isArray(arr) || !arr.length) return null;
@@ -246,6 +260,50 @@ export function blockersOf(issue) {
 }
 
 /* ---------------------- Sprint commitment / health ------------------------ */
+// Was `sprintId` part of this comma-set of sprint IDs (from the "Sprint"
+// changelog field — see splitIds() in lib/jira-core.js)?
+const inSprintSet = (ids, sprintId) => Array.isArray(ids) && ids.includes(String(sprintId));
+
+// The real answer to "was this issue part of the ORIGINAL commitment when
+// the sprint started, added to the plan later, or pulled back out again?" —
+// replayed from the issue's own "Sprint" field changelog (`cl.sprintChanges`)
+// rather than guessed from its creation date. An issue moved into an already-
+// running sprint from the backlog, or pulled back out mid-sprint, is exactly
+// the case the old created-date heuristic got wrong: it only ever noticed
+// issues that were CREATED after the sprint started, and had no way at all to
+// notice a pre-existing issue being dragged in or out later.
+//
+// `cl` (that issue's changelog) is loaded LAZILY today (Stage Analysis's
+// "load" button) — until it is, this falls back to the previous heuristic so
+// nothing regresses; once loaded, the real history takes over automatically.
+export function sprintMembership(issue, cl, sprint) {
+  const start = ms(sprint && sprint.startDate);
+  const created = ms(issue.fields && issue.fields.created);
+  const sprintId = sprint && sprint.id;
+  const events = cl && Array.isArray(cl.sprintChanges) && cl.sprintChanges.length
+    ? [...cl.sprintChanges].sort((a, b) => new Date(a.at) - new Date(b.at))
+    : null;
+
+  if (!events || sprintId == null || start == null) {
+    const addedDuringSprint = start != null && created != null && created > start + DAY;
+    return { committedAtStart: !addedDuringSprint, addedDuringSprint, removedDuringSprint: false, known: false };
+  }
+
+  let state = events[0].fromIds; // membership right before the earliest logged change
+  let committedAtStart = null;
+  let removedDuringSprint = false;
+  for (const ev of events) {
+    const at = new Date(ev.at).getTime();
+    const wasIn = inSprintSet(state, sprintId);
+    if (committedAtStart == null && at > start) committedAtStart = wasIn;
+    if (at > start && wasIn && !inSprintSet(ev.toIds, sprintId)) removedDuringSprint = true;
+    state = ev.toIds;
+  }
+  if (committedAtStart == null) committedAtStart = inSprintSet(state, sprintId); // sprint started after every logged event
+
+  return { committedAtStart, addedDuringSprint: !committedAtStart, removedDuringSprint, known: true };
+}
+
 // Sprint-commitment state (met/missed/ontrack/atrisk/behind) for one attainment ratio.
 function commitmentState(attainment, closed, elapsed) {
   if (closed) return attainment >= MISS_THRESHOLD ? "met" : "missed";
@@ -259,7 +317,13 @@ function commitmentState(attainment, closed, elapsed) {
 // committed) and `completionAttainment` (items done ÷ items committed,
 // ignoring points entirely). `mode` ("points" | "completion") just picks
 // which one drives the back-compat `attainment`/`state` fields.
-export function sprintCommitment(sprintIssues, sprint, mode = "points", now = Date.now(), onlyTeam = myTeam.name) {
+// `changelogByKey` (optional, keyed by issue key) supplies each issue's real
+// "Sprint" field history — see sprintMembership() above. Pass in whatever's
+// already been loaded (e.g. Stage Analysis's lazy changelog cache); issues
+// without a loaded changelog yet still get a sane answer via the fallback
+// heuristic inside sprintMembership(), they just don't benefit from the real
+// add/remove detection until it's fetched.
+export function sprintCommitment(sprintIssues, sprint, mode = "points", now = Date.now(), onlyTeam = myTeam.name, changelogByKey = {}) {
   const start = ms(sprint && sprint.startDate);
   const end = ms(sprint && (sprint.completeDate || sprint.endDate));
   const closed = sprint && sprint.state === "closed";
@@ -268,8 +332,10 @@ export function sprintCommitment(sprintIssues, sprint, mode = "points", now = Da
     const id = a ? a.accountId : "none";
     if (!people.has(id)) people.set(id, {
       id, name: a ? a.displayName : "Unassigned", avatar: a && a.avatarUrls ? a.avatarUrls["24x24"] : null,
-      committedPts: 0, addedPts: 0, donePts: 0, totalPts: 0, committedItems: 0,
-      totalItems: 0, doneItems: 0, carryOver: 0, addedMid: 0, noEstimate: 0, openItems: [], doneList: [], lateList: [],
+      committedPts: 0, addedPts: 0, removedPts: 0, donePts: 0, totalPts: 0, committedItems: 0,
+      totalItems: 0, doneItems: 0, carryOver: 0, addedMid: 0, removedItems: 0, noEstimate: 0,
+      addedDoneItems: 0, addedDonePts: 0, reopenedItems: 0,
+      openItems: [], doneList: [], lateList: [], removedList: [], addedDoneList: [], reopenedList: [], carryOverList: [],
     });
     return people.get(id);
   };
@@ -278,20 +344,62 @@ export function sprintCommitment(sprintIssues, sprint, mode = "points", now = Da
     const f = n.fields;
     const p = get(f.assignee);
     const pts = storyPoints(n);
-    const created = ms(f.created);
-    const addedMid = start != null && created != null && created > start + DAY; // created after sprint start
+    // committedAtStart / addedDuringSprint / removedDuringSprint — see
+    // sprintMembership() for how this is derived. Deliberately does NOT feed
+    // committedPts/committedItems for a removed item: what was pulled back
+    // out of the sprint after being committed shouldn't count against what
+    // the developer is being measured on, but it's still tracked (removed*)
+    // so the churn itself stays visible.
+    const cl = changelogByKey[n.key];
+    const mem = sprintMembership(n, cl, sprint);
     const done = isDone(n);
     const doneInSprint = done && (!closed || (ms(f.resolutiondate) != null && (end == null || ms(f.resolutiondate) <= end + DAY)));
-    const carried = Array.isArray(f.customfield_10020) && f.customfield_10020.length > 1;
+    // How many sprints (total) has this ticket EVER been assigned to —
+    // Jira's Sprint field just keeps accumulating every sprint an issue was
+    // ever in, so length > 1 means "carried over at least once", and the
+    // exact count is "this is its Nth sprint" — e.g. sprintCount: 3 means
+    // this is the third sprint in a row it's shown up in, unfinished each
+    // time. We only MEASURE a person against the CURRENT sprint (this
+    // function is always called scoped to one sprint); an unfinished ticket
+    // simply becomes part of next sprint's OWN committed baseline once it's
+    // carried there — sprintCount is purely a visibility label on top of
+    // that, so a manager can tell "still open" apart from "still open for
+    // the 4th sprint running" at a glance.
+    const sprintCount = Array.isArray(f.customfield_10020) ? f.customfield_10020.length : 1;
+    const carried = sprintCount > 1;
+    const reopened = wasReopened(cl);
 
     p.totalItems += 1; p.totalPts += pts;
-    if (addedMid) { p.addedMid += 1; p.addedPts += pts; } else { p.committedPts += pts; p.committedItems += 1; }
-    if (carried) p.carryOver += 1;
     if (pts === 0) p.noEstimate += 1;
-    const item = { key: n.key, webUrl: n.webUrl, summary: f.summary, status: f.status && f.status.name, pts, missing: pts === 0, type: f.issuetype && f.issuetype.name };
-    if (doneInSprint) { p.doneItems += 1; p.donePts += pts; p.doneList.push(item); }
-    else if (done) p.lateList.push(item); // done now, but completed after the sprint ended — carry-over
-    else p.openItems.push(item);
+    const item = { key: n.key, webUrl: n.webUrl, summary: f.summary, status: f.status && f.status.name, pts, missing: pts === 0, type: f.issuetype && f.issuetype.name, reopened, sprintCount };
+    // Cuts ACROSS the added/removed/committed split below — a reopened
+    // ticket can be in any of those three buckets. Visibility only (see
+    // wasReopened() above for why this never touches the attainment math).
+    if (reopened) { p.reopenedItems += 1; p.reopenedList.push(item); }
+    if (carried) { p.carryOver += 1; p.carryOverList.push(item); }
+
+    // Three mutually-exclusive buckets — added / removed / original-commitment
+    // — each carries its OWN done/late/open split. This matters: an item
+    // ADDED mid-sprint that then gets closed must NOT land in `doneItems`/
+    // `donePts` (the attainment numerator), because it was never part of
+    // `committedItems`/`committedPts` (the denominator) — mixing them let a
+    // developer's attainment climb past 100% just by closing extra,
+    // never-committed-to work (e.g. "6/5 tasks · 120%"). Finished added
+    // items are real, visible work — tracked in addedDone* — they just don't
+    // feed the say/do ratio, same principle as removed items not hurting it.
+    if (mem.addedDuringSprint) {
+      p.addedMid += 1; p.addedPts += pts;
+      if (doneInSprint) { p.addedDoneItems += 1; p.addedDonePts += pts; p.addedDoneList.push(item); }
+      else if (done) p.lateList.push(item);
+      else p.openItems.push(item);
+    } else if (mem.removedDuringSprint) {
+      p.removedItems += 1; p.removedPts += pts; p.removedList.push(item);
+    } else {
+      p.committedPts += pts; p.committedItems += 1;
+      if (doneInSprint) { p.doneItems += 1; p.donePts += pts; p.doneList.push(item); }
+      else if (done) p.lateList.push(item); // done now, but completed after the sprint ended — carry-over
+      else p.openItems.push(item);
+    }
   }
   const elapsed = start != null && end != null && end > start ? clamp((now - start) / (end - start), 0, 1) : 0.5;
   // finalize
@@ -306,8 +414,8 @@ export function sprintCommitment(sprintIssues, sprint, mode = "points", now = Da
     const state = mode === "completion" ? completionState : pointsState;
     return {
       ...p,
-      committedPts: round(p.committedPts, 1), addedPts: round(p.addedPts, 1),
-      donePts: round(p.donePts, 1), totalPts: round(p.totalPts, 1),
+      committedPts: round(p.committedPts, 1), addedPts: round(p.addedPts, 1), removedPts: round(p.removedPts, 1),
+      donePts: round(p.donePts, 1), totalPts: round(p.totalPts, 1), addedDonePts: round(p.addedDonePts, 1),
       pointsAttainment: round(pointsAttainment * 100, 0), completionAttainment: round(completionAttainment * 100, 0),
       pointsState, completionState,
       attainment: round(attainment * 100, 0), state,
@@ -568,7 +676,7 @@ export function stageStatsByPerson(issues, changelogByKey, sprint, now = Date.no
   const windowEnd = sprintEnd != null ? Math.min(sprintEnd, now) : now;
   const people = new Map();
   const getPerson = (id, name, avatar) => {
-    if (!people.has(id)) people.set(id, { id, name, avatar, byStatus: {}, items: 0, excluded: [], changed: [] });
+    if (!people.has(id)) people.set(id, { id, name, avatar, byStatus: {}, items: 0, excluded: [], changed: [], reopened: [] });
     return people.get(id);
   };
   for (const n of issues) {
@@ -586,6 +694,11 @@ export function stageStatsByPerson(issues, changelogByKey, sprint, now = Date.no
     // this ticket's history is hidden — see changeSummary().
     const cs = changeSummary(cl);
     if (cs.changed) p.changed.push({ key: n.key, webUrl: n.webUrl, summary: n.fields.summary, ...cs });
+    // Same "was this ever moved back out of Done" signal used in
+    // sprintCommitment() — see wasReopened() — surfaced here too so Stage
+    // Analysis and Goal Attainment agree on which tickets regressed instead
+    // of each section only knowing about its own half of the picture.
+    if (wasReopened(cl)) p.reopened.push({ key: n.key, webUrl: n.webUrl, summary: n.fields.summary, status: statusName });
     const created = ms(n.fields.created);
     const res = ms(n.fields.resolutiondate);
     const endRef = res != null ? Math.min(res, windowEnd) : windowEnd;
@@ -651,7 +764,7 @@ export function stageStatsByPerson(issues, changelogByKey, sprint, now = Date.no
     // wait and Blocked/paused time. Defined as the sum of `groups` (not
     // filtered independently) so the two numbers can never disagree.
     const cycle = round(groups.reduce((a, g) => a + g.days, 0), 1);
-    return { ...p, stages, groups, total, cycleDays: cycle, cyclePerItem: p.items ? round(cycle / p.items, 1) : 0, excludedCount: p.excluded.length, changedCount: p.changed.length };
+    return { ...p, stages, groups, total, cycleDays: cycle, cyclePerItem: p.items ? round(cycle / p.items, 1) : 0, excludedCount: p.excluded.length, changedCount: p.changed.length, reopenedCount: p.reopened.length };
   }).sort((a, b) => b.total - a.total);
 }
 
