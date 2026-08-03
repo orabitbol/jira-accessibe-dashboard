@@ -44,8 +44,8 @@ export function TicketStages({ transitions, created, currentStatus, sprintStart 
           const suffix = wait ? " (waiting)" : paused ? " (blocked — not counted as active work)" : "";
           return (
             <span key={i} className={"sseg" + (wait ? " wait" : "") + (isCurrent ? " current" : "")}
-              style={{ width: `${(s.days / totalDays) * 100}%`, background: wait ? undefined : colorForStatus(s.status) }}>
-              <span className="sseg-tip">
+              style={{ flexGrow: s.days, flexBasis: 0, background: wait ? undefined : colorForStatus(s.status) }}>
+              <span className="bar-tip">
                 <i style={{ background: wait ? "#cbd5e1" : colorForStatus(s.status) }} />
                 {s.status}{suffix} · {fmtDur(s.days)} (workdays) · {pct}%
               </span>

@@ -179,6 +179,9 @@ const en = {
   "stage.legendTitle": "Rolled up the same way as the eazyBI tab's \"{label}\" stage.",
   "stage.groupBarTitle": "eazyBI-style stage buckets — same grouping as the eazyBI tab, workdays per item",
   "stage.groupTipLine": "{label}: {avg}d/item avg workdays ({pct}% of this person's active-work stages)",
+  "stage.barLabelEazybi": "eazyBI stages",
+  "stage.barLabelDetail": "Jira statuses (incl. waiting)",
+  "stage.detailBarTitle": "Per Jira status from the changelog — includes To-Do/Blocked waiting time as the dashed segment",
 
   "stage.avgCycleTimePrefix": "Average cycle time (work start → done, excluding To-Do/Blocked wait, workdays):",
   "stage.avgCycleTimeSuffix": "per item.",
@@ -370,6 +373,9 @@ const he = {
   "stage.legendTitle": "מקובץ באותה שיטה כמו השלב \"{label}\" בטאב eazyBI.",
   "stage.groupBarTitle": "קיבוץ שלבים בשיטת eazyBI — אותו קיבוץ כמו בטאב eazyBI, ימי עבודה לפריט",
   "stage.groupTipLine": "{label}: {avg} ימים/פריט בממוצע ({pct}% מזמן העבודה הפעיל של האדם הזה)",
+  "stage.barLabelEazybi": "שלבים בסגנון eazyBI",
+  "stage.barLabelDetail": "סטטוסים ב-Jira (כולל המתנה)",
+  "stage.detailBarTitle": "לפי סטטוס Jira מהיסטוריית השינויים — כולל זמן המתנה ב-To-Do/Blocked כמקטע המקווקו",
 
   "stage.avgCycleTimePrefix": "זמן מחזור ממוצע (מתחילת העבודה ועד Done, לא כולל חכייה ב-To Do/Blocked, ימי עבודה):",
   "stage.avgCycleTimeSuffix": "לפריט.",

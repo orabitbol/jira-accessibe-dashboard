@@ -83,27 +83,32 @@ td.name { font-weight: 600; }
 .badge.bug { background: #ef4444; } .badge.story { background: #4f46e5; } .badge.task { background: #16a34a; }
 
 /* sprint health — per-person stage bars (each in its own clear row) */
-.stage-people { display: flex; flex-direction: column; gap: 16px; margin-top: 6px; }
-.stage-row { border: 1px solid #e6e8ec; border-radius: 12px; padding: 16px 18px; background: #fff; }
+.stage-people { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.stage-row { border: 1px solid #e6e8ec; border-radius: 14px; padding: 16px 18px; background: #fff; }
 /* `.stage-who` (avatar/name/standard pill) and `.stage-stats` (the metric
    badges) used to sit side-by-side on ONE row fighting for width, which is
    what made this read as cramped — a long name plus 4-5 badges had nowhere
    to go but wrap awkwardly. Stacking them (name row, then its own badge
    row underneath) gives each its own full-width line to wrap within. */
-.stage-row-top { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.stage-row-top { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 .stage-who { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.stage-who img, .stage-who .ava { width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; flex: 0 0 auto; }
+.stage-who img, .stage-who .ava { width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; flex: 0 0 auto; }
 .stage-name { font-weight: 700; font-size: 14px; }
-.stage-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.stage-stats { display: flex; gap: 6px; flex-wrap: wrap; }
 .stage-stats .stat { font-size: 11.5px; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 4px 11px; line-height: 1.35; }
 .stage-stats .stat.work { background: #eef2ff; color: #4338ca; }
 .stage-stats .stat.wait { background: #f8fafc; color: #94a3b8; }
 .stage-stats .stat.archived { background: #f1f5f9; color: #64748b; font-style: italic; }
 .stage-stats .stat.changed { background: #fff7ed; color: #c2410c; }
 .stage-stats .stat.reopened { background: #fef3c7; color: #92400e; }
-.stage-row .sbar { height: 22px; }
+.stage-bars { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; }
+.stage-bar-block { display: flex; flex-direction: column; gap: 5px; }
+.stage-bar-label {
+  font-size: 11px; font-weight: 650; color: #94a3b8; letter-spacing: .01em;
+  line-height: 1.2; cursor: default;
+}
 .stage-foot { margin-top: 14px; }
-.stage-excluded, .stage-changed, .stage-otherwork, .stage-reopened { margin-top: 9px; }
+.stage-excluded, .stage-changed, .stage-otherwork, .stage-reopened { margin-top: 10px; }
 
 /* compact "changed mid-sprint" list */
 .chg-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
@@ -225,47 +230,47 @@ td.cell-bad { background: #fee2e2; color: #991b1b; font-weight: 700; }
 .tline-dot.todo { background: #cbd5e1; }
 .tline-dot.start { background: #16a34a; }
 .tline-dot.wait { background: #f59e0b; }
-/* "waiting" (To Do) segment — distinct striped gray so it's clearly not work */
+/* Shared hover tooltip for stage / status bar segments */
+.bar-tip {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  display: none; align-items: center; gap: 6px; white-space: nowrap;
+  background: #1a1d24; color: #fff; font-size: 11.5px; font-weight: 600;
+  padding: 6px 10px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.22);
+  z-index: 20; pointer-events: none; line-height: 1.3;
+}
+.bar-tip i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: 0 0 auto; }
+.bar-tip::after {
+  content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #1a1d24;
+}
+
+/* Stage Analysis — grouped eazyBI buckets (top bar). Each segment is its own
+   rounded chip so LTR/RTL both look correct (first/last physical radii break
+   when dir=rtl reverses the flex axis). overflow stays visible for tooltips. */
+.stage-gbar { display: flex; height: 18px; gap: 3px; width: 100%; }
+.stage-gbar-seg {
+  height: 100%; position: relative; min-width: 4px; border-radius: 6px;
+  cursor: default; transition: filter .12s, transform .12s;
+}
+.stage-gbar-seg:hover { filter: brightness(1.1); transform: scaleY(1.16); z-index: 3; }
+.stage-gbar-seg:hover .bar-tip { display: inline-flex; }
+.stage-gbar-seg.eb-dev { background: #4f46e5; }
+.stage-gbar-seg.eb-review { background: #dc2626; }
+.stage-gbar-seg.eb-qa { background: #059669; }
+.stage-gbar-seg.eb-product { background: #7c3aed; }
+.stage-gbar-seg.eb-release { background: #0891b2; }
+.stage-gbar-seg.eb-other { background: #94a3b8; }
+
+/* Per-status detail bar (bottom). Same chip + gap language as .stage-gbar. */
 .sseg.wait { background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 4px, #eef2f6 4px, #eef2f6 8px); }
-.sbar { display: flex; height: 20px; border-radius: 7px; overflow: visible; background: #eef0f3; gap: 2px; padding: 0; }
-.sseg { height: 100%; position: relative; cursor: default; transition: filter .12s, transform .12s; min-width: 3px; }
-.sbar .sseg:first-child { border-radius: 7px 0 0 7px; }
-.sbar .sseg:last-child { border-radius: 0 7px 7px 0; }
-.sseg:hover { filter: brightness(1.08); transform: scaleY(1.18); z-index: 2; }
+.sbar { display: flex; height: 22px; gap: 3px; width: 100%; background: transparent; }
+.sseg {
+  height: 100%; position: relative; cursor: default; min-width: 4px; border-radius: 6px;
+  transition: filter .12s, transform .12s;
+}
+.sseg:hover { filter: brightness(1.08); transform: scaleY(1.14); z-index: 3; }
+.sseg:hover .bar-tip { display: inline-flex; }
 .sseg.current { box-shadow: inset 0 0 0 2px rgba(255,255,255,.6); }
-.sseg-tip {
-  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  display: none; align-items: center; gap: 6px; white-space: nowrap;
-  background: #1a1d24; color: #fff; font-size: 11.5px; font-weight: 600;
-  padding: 5px 9px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.22); z-index: 10; pointer-events: none;
-}
-.sseg-tip i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-.sseg-tip::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1a1d24; }
-.sseg:hover .sseg-tip { display: inline-flex; }
-/* Same hover-tooltip treatment as .sseg-tip above, for StageGroupBar's
-   segments — so the two stacked bars in Stage Analysis behave identically
-   on hover instead of one having a styled tooltip and the other only a
-   native (and much less visible) title= tooltip. */
-.wf-seg { position: relative; }
-.wf-seg-tip {
-  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  display: none; align-items: center; gap: 6px; white-space: nowrap;
-  background: #1a1d24; color: #fff; font-size: 11.5px; font-weight: 600;
-  padding: 5px 9px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.22); z-index: 10; pointer-events: none;
-}
-.wf-seg-tip::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1a1d24; }
-.wf-hoverable .wf-seg:hover .wf-seg-tip { display: inline-flex; }
-/* .sprint-cycle-bar sets overflow:hidden to clip square segment edges into
-   its own rounded pill shape — but that ALSO clips the tooltip popup above
-   it, which is why hovering the top bar looked like it had no tooltip at
-   all (the tooltip was rendering, just invisible, cut off by the parent).
-   Only .wf-hoverable (Stage Analysis's grouped bar) needs the popup to
-   escape, so it switches back to overflow:visible and re-applies the
-   rounded corners directly on the first/last segment instead — same trick
-   already used by .sbar/.sseg below for the per-status bar. */
-.wf-hoverable { overflow: visible; }
-.wf-hoverable .wf-seg:first-child { border-radius: 5px 0 0 5px; }
-.wf-hoverable .wf-seg:last-child { border-radius: 0 5px 5px 0; }
 .tstages-now { margin-top: 9px; font-size: 11.5px; color: #475569; display: flex; align-items: center; gap: 6px; }
 .dotnow { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
 

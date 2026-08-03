@@ -280,16 +280,24 @@ export function StageAnalysis({ stages, loading, onLoad, sprint, t }) {
                       )}
                     </div>
                   </div>
-                  {p.groups && p.groups.length > 0 && (
-                    <div style={{ marginBottom: 8 }}>
-                      <StageGroupBar groups={p.groups} items={p.items} t={t} />
-                    </div>
-                  )}
-                  {p.stages.length > 0 ? <StageBar stages={p.stages} items={p.items} elapsedDays={elapsedWorkdays} t={t} /> : (
-                    <div className="muted small">
-                      {p.items === 0 && p.excludedCount === 0 ? t("stage.noTasksPerson") : t("stage.allArchived")}
-                    </div>
-                  )}
+                  <div className="stage-bars">
+                    {p.groups && p.groups.length > 0 && (
+                      <div className="stage-bar-block">
+                        <div className="stage-bar-label" title={t("stage.groupBarTitle")}>{t("stage.barLabelEazybi")}</div>
+                        <StageGroupBar groups={p.groups} items={p.items} t={t} />
+                      </div>
+                    )}
+                    {p.stages.length > 0 ? (
+                      <div className="stage-bar-block">
+                        <div className="stage-bar-label" title={t("stage.detailBarTitle")}>{t("stage.barLabelDetail")}</div>
+                        <StageBar stages={p.stages} items={p.items} elapsedDays={elapsedWorkdays} t={t} />
+                      </div>
+                    ) : (
+                      <div className="muted small">
+                        {p.items === 0 && p.excludedCount === 0 ? t("stage.noTasksPerson") : t("stage.allArchived")}
+                      </div>
+                    )}
+                  </div>
                   <ExcludedNote items={p.excluded} t={t} />
                   <ChangedNote items={p.changed} t={t} />
                   <ReopenedNote items={p.reopened} t={t} />

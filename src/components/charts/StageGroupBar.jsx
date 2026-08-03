@@ -22,26 +22,28 @@ const GROUP_I18N_KEY = {
   productReview: "stagegroup.productReview", release: "stagegroup.release", other: "stagegroup.other",
 };
 
-// Same styled hover box as StageBar's `.sseg-tip` (below it) — a plain
-// `title=` attribute (the old approach here) only shows the OS's native
-// tooltip after a long hover delay, with no styling, so this bar visually
-// read as "not hoverable" next to StageBar's bar directly underneath it,
-// which DOES show an instant styled tooltip. Same interaction, same look,
-// for both bars now.
+// Own `.stage-gbar` track (not `.sprint-cycle-bar`) so Stage Analysis can show
+// styled hover tooltips without fighting eazyBI's overflow:hidden pill clip,
+// and so every segment gets its own radius (RTL-safe — first/last physical
+// corner tricks break when <html dir="rtl"> reverses the flex axis).
 export function StageGroupBar({ groups, items = 1, t }) {
   if (!groups || !groups.length) return null;
   const total = groups.reduce((a, g) => a + g.days, 0) || 1;
   const perItem = items > 0 ? items : 1;
   return (
-    <div className="sprint-cycle-bar wf-hoverable" title={t("stage.groupBarTitle")}>
+    <div className="stage-gbar" aria-label={t("stage.groupBarTitle")}>
       {groups.map((g) => {
         const avgDays = g.days / perItem;
         const pct = Math.round((g.days / total) * 100);
         const label = t(GROUP_I18N_KEY[g.key] || "stagegroup.other");
         return (
-          <span key={g.key} className={"wf-seg " + (GROUP_CLASS[g.key] || "")} style={{ width: `${(g.days / total) * 100}%` }}>
-            <span className="wf-seg-tip">
-              <i className={"wf-dot " + (GROUP_CLASS[g.key] || "")} />
+          <span
+            key={g.key}
+            className={"stage-gbar-seg " + (GROUP_CLASS[g.key] || "eb-other")}
+            style={{ flexGrow: g.days, flexBasis: 0 }}
+          >
+            <span className="bar-tip">
+              <i className={"wf-dot " + (GROUP_CLASS[g.key] || "eb-other")} />
               {t("stage.groupTipLine", { label, avg: avgDays.toFixed(1), pct })}
             </span>
           </span>

@@ -35,8 +35,8 @@ export function StageBar({ stages, items = 1, elapsedDays = null, t }) {
         const suffix = wait ? t("stage.waitingSuffix") : paused ? t("stage.blockedSuffix") : "";
         return (
           <span key={i} className={"sseg" + (wait ? " wait" : "")}
-            style={{ width: `${(s.days / total) * 100}%`, background: wait ? undefined : colorForStatus(s.status) }}>
-            <span className="sseg-tip">
+            style={{ flexGrow: s.days, flexBasis: 0, background: wait ? undefined : colorForStatus(s.status) }}>
+            <span className="bar-tip">
               <i style={{ background: wait ? "#cbd5e1" : colorForStatus(s.status) }} />
               {s.status}{suffix} · {fmtDur(avgDays)}{t("stage.perItemAvgWorkdays")}{ofSprint != null ? ` · ${ofSprint}${t("stage.pctOfSprintSoFar")}` : ""}
             </span>
