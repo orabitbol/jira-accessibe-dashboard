@@ -471,6 +471,22 @@ export function commitmentTrend(perSprint) {
   }).sort((a, b) => (b.recurring - a.recurring) || ((a.avg == null ? 101 : a.avg) - (b.avg == null ? 101 : b.avg)));
 }
 
+// Team-level committed vs. actually-delivered, one pair per sprint — the
+// literal "what we promised next to what we finished" chart a manager would
+// ask for, at a glance across sprints (as opposed to commitmentTrend()
+// above, which is the per-developer % breakdown). Both lenses (points and
+// items) are always returned side by side, same convention as sprintCommitment.
+export function teamCommitmentSeries(perSprint) {
+  // perSprint: [{ sprint, rows: sprintCommitment(...) }] oldest->newest
+  return perSprint.map(({ sprint, rows }) => ({
+    id: sprint.id, name: sprint.name, closed: sprint.state === "closed",
+    committedPts: round(rows.reduce((a, r) => a + r.committedPts, 0), 1),
+    donePts: round(rows.reduce((a, r) => a + r.donePts, 0), 1),
+    committedItems: rows.reduce((a, r) => a + r.committedItems, 0),
+    doneItems: rows.reduce((a, r) => a + r.doneItems, 0),
+  }));
+}
+
 /* --------------------------- Planning (future) ---------------------------- */
 // My team's upcoming sprints (active or future) derived from open issues.
 export function planningSprints(openIssues) {

@@ -1,12 +1,13 @@
 import { useMemo } from "react";
 import { myTeam } from "../../../teams.config.js";
-import { sprintCommitment, commitmentTrend, stageStatsByPerson, fillMissingMembers, otherWorkByPerson, round } from "../../domain/metrics.js";
+import { sprintCommitment, commitmentTrend, teamCommitmentSeries, stageStatsByPerson, fillMissingMembers, otherWorkByPerson, round } from "../../domain/metrics.js";
 import { fmt } from "../../utils/format.js";
 import { Card } from "../common/Card.jsx";
 import { Kpi } from "../common/Kpi.jsx";
 import { Explainer } from "../common/Explainer.jsx";
 import { DevCard } from "./DevCard.jsx";
 import { CommitmentTrend } from "./CommitmentTrend.jsx";
+import { PredictabilityChart } from "./PredictabilityChart.jsx";
 import { StageAnalysis } from "./StageAnalysis.jsx";
 
 export function SprintHealthView({ selectedSprint, recentSprints, issuesById, loading, stageData, stageLoading, onLoadStages, mode = "points", activeIssues, t }) {
@@ -18,12 +19,15 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
   // sprintCommitment falls back to its old creation-date heuristic.
   const changelogByKey = stageData && stageData.sprintId === selectedSprint?.id ? stageData.byKey : {};
   const rows = useMemo(() => (issues ? sprintCommitment(issues, selectedSprint, mode, Date.now(), myTeam.name, changelogByKey) : []), [issues, selectedSprint, mode, changelogByKey]);
-  const trend = useMemo(() => {
-    const per = recentSprints
-      .map((s) => ({ sprint: s, rows: issuesById[s.id] ? sprintCommitment(issuesById[s.id], s, mode) : [] }))
-      .filter((p) => p.rows.length);
-    return commitmentTrend(per);
-  }, [recentSprints, issuesById, mode]);
+  // Computed once, shared by the per-developer % trend table AND the
+  // team-level committed-vs-done bar chart below — same underlying
+  // per-sprint sprintCommitment() rows, two different views of them.
+  const per = useMemo(
+    () => recentSprints.map((s) => ({ sprint: s, rows: issuesById[s.id] ? sprintCommitment(issuesById[s.id], s, mode) : [] })),
+    [recentSprints, issuesById, mode]
+  );
+  const trend = useMemo(() => commitmentTrend(per.filter((p) => p.rows.length)), [per]);
+  const series = useMemo(() => teamCommitmentSeries(per.filter((p) => p.rows.length)), [per]);
   // Always show every declared team member — someone with zero items this
   // sprint (e.g. a manager doing less hands-on work) shouldn't just vanish.
   // NOTE: must run unconditionally (before the early returns below) — every
@@ -110,6 +114,8 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
           {displayRows.some((r) => r.id === "none") && <DevCard r={displayRows.find((r) => r.id === "none")} mode={mode} t={t} />}
         </div>
       </Card>
+
+      <PredictabilityChart series={series} mode={mode} t={t} />
 
       <CommitmentTrend trend={trend} recentSprints={recentSprints} sprintIssuesById={issuesById} mode={mode} t={t} />
 
