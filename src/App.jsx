@@ -56,6 +56,7 @@ export default function App() {
               sprintLoading={d.sprintLoading}
               managerSince={d.managerSince}
               mode={d.attainmentMode}
+              t={t}
             />
           )}
           {tab === "recommendations" && (

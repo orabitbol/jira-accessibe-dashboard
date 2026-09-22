@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePersistentState } from "./usePersistentState.js";
 import { fetchAll, fetchSprintIssues, fetchChangelogs } from "../services/jiraApi.js";
-import { myTeam, leadTeams, setActiveTeam, resolveTeamId, withTeam } from "../../teams.config.js";
-import { myTeamSprints, mergeSprints, currentSprint, planningSprints, defaultPlanningSprint, sprintCommitment, teamCommitmentSeries, predictabilityRows, predictabilityAverage } from "../domain/metrics.js";
+import { myTeam, leadTeams, setActiveTeam, resolveTeamId, compareProjects } from "../../teams.config.js";
+import { myTeamSprints, mergeSprints, currentSprint, planningSprints, defaultPlanningSprint, projectSprints, sprintCommitment, teamCommitmentSeries, predictabilityRows, predictabilityAverage } from "../domain/metrics.js";
 import { makeT, RTL_LANGS } from "../i18n.js";
 
 // Central orchestration: owns all dashboard state + data loading.
@@ -166,20 +166,15 @@ export function useDashboard() {
   // the lens must not leave stale numbers labelled with the new one.
   useEffect(() => { setCompare(null); }, [attainmentMode]);
 
-  // Builds "%Done from Committed" per sprint for EVERY lead-team, reusing the
-  // exact same metric code as the single-team view by running it once per team
-  // through withTeam() — so the comparison can never drift from the number
-  // shown on the team's own card.
+  // Builds "%Done from Committed" per sprint for each lead-team's PROJECT —
+  // the same scope ops' eazyBI report uses (Widget & Engine vs ACR), so the
+  // two columns are measured identically and the result lines up with the
+  // number ops circulates. The team's own card above stays roster-scoped.
   async function loadCompare() {
     if (!base || compareLoading) return;
-    const plan = leadTeams.map((team) => ({
-      team,
-      sprints: withTeam(team.id, () => mergeSprints(
-        myTeamSprints([...base.resolved, ...base.active]),
-        myTeamSprints(base.open || [], { includeFuture: false }),
-      )).slice(-6),
-    }));
-    const needed = [...new Set(plan.flatMap((p) => p.sprints.map((s) => s.id)))].filter((id) => !sprintIssuesById[id]);
+    const all = [...base.resolved, ...base.active, ...(base.open || [])];
+    const plan = compareProjects.map((p) => ({ ...p, sprints: projectSprints(all, p.key, p.boardId).slice(-6) }));
+    const needed = [...new Set(plan.flatMap((p) => p.sprints.map((sp) => sp.id)))].filter((id) => !sprintIssuesById[id]);
     setCompareLoading({ done: 0, total: needed.length });
     try {
       const fetched = {};
@@ -193,13 +188,19 @@ export function useDashboard() {
       const byId = { ...sprintIssuesById, ...fetched };
       setSprintIssuesById(byId);
       const mode = attainmentMode;
-      const byTeam = plan.map(({ team, sprints }) => withTeam(team.id, () => {
-        const per = sprints
+      const byTeam = plan.map((p) => {
+        const per = p.sprints
           .filter((sp) => byId[sp.id])
-          .map((sp) => ({ sprint: sp, rows: sprintCommitment(byId[sp.id], sp, mode) }));
+          .map((sp) => ({
+            sprint: sp,
+            // Project scope: every issue in the sprint that belongs to this
+            // project, whoever it is assigned to (onlyTeam = null disables the
+            // roster filter the rest of the dashboard uses).
+            rows: sprintCommitment(byId[sp.id].filter((n) => n.fields.project && n.fields.project.key === p.key), sp, mode, Date.now(), null),
+          }));
         const rows = predictabilityRows(teamCommitmentSeries(per.filter((x) => x.rows.length)), mode);
-        return { id: team.id, name: team.name, project: team.key, rows, avg: predictabilityAverage(rows) };
-      }));
+        return { id: p.teamId, name: p.label, project: p.key, rows, avg: predictabilityAverage(rows) };
+      });
       setCompare({ byTeam, mode });
     } catch (e) {
       setError(String(e && e.message ? e.message : e));

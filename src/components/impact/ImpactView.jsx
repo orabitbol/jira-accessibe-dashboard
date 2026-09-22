@@ -10,7 +10,11 @@ import { SprintTrendTable } from "./SprintTrendTable.jsx";
 const dt = (s) => (s ? new Date(s).toLocaleDateString("en-GB") : "—");
 const msOf = (s) => (s.startDate ? new Date(s.startDate).getTime() : null);
 
-export function ImpactView({ sprints, sprintIssuesById, sprintLoading, managerSince, mode = "points" }) {
+// NOTE: `t` is threaded through purely so the shared DevCard (which is fully
+// translated) can render here too. This tab's own copy is still English — see
+// the coverage note at the top of i18n.js — but DevCard CALLS t(), so omitting
+// it crashed the whole tab the moment a live sprint had rows to show.
+export function ImpactView({ sprints, sprintIssuesById, sprintLoading, managerSince, mode = "points", t }) {
   const firstLeadSprint = useMemo(() => leadershipStartSprint(sprints, managerSince), [sprints, managerSince]);
   const boundaryMs = useMemo(
     () => (firstLeadSprint && firstLeadSprint.startDate ? new Date(firstLeadSprint.startDate).getTime() : new Date(managerSince).getTime()),
@@ -90,7 +94,7 @@ export function ImpactView({ sprints, sprintIssuesById, sprintLoading, managerSi
               tone={elapsedPct != null ? (live.attainment >= elapsedPct ? "good" : "bad") : undefined} hint="Progress vs. time elapsed" />
           </div>
           <div className="devs">
-            {liveRows.filter((r) => r.id !== "none").map((r) => <DevCard key={r.id} r={r} mode={mode} />)}
+            {liveRows.filter((r) => r.id !== "none").map((r) => <DevCard key={r.id} r={r} mode={mode} t={t} />)}
           </div>
         </Card>
       )}

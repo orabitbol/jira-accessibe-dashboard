@@ -521,6 +521,27 @@ export function teamCommitmentSeries(perSprint) {
   }));
 }
 
+// Sprints of a whole Jira PROJECT, ignoring rosters and legacy boards — the
+// scope ops' eazyBI report uses. Only sprints on that project's own board
+// count, so a ticket a teammate parked in another team's sprint can't drag a
+// foreign sprint into the list. Future sprints are skipped: there is nothing
+// delivered to measure in them yet.
+export function projectSprints(issues, projectKey, boardId) {
+  const map = new Map();
+  for (const n of issues || []) {
+    const f = n.fields || {};
+    if (!f.project || f.project.key !== projectKey) continue;
+    const arr = f.customfield_10020;
+    if (!Array.isArray(arr)) continue;
+    for (const sp of arr) {
+      if (!sp || sp.id == null || sp.state === "future") continue;
+      if (boardId != null && sp.boardId != null && sp.boardId !== boardId) continue;
+      if (!map.has(sp.id)) map.set(sp.id, { id: sp.id, name: sp.name, state: sp.state, startDate: sp.startDate, endDate: sp.endDate, completeDate: sp.completeDate });
+    }
+  }
+  return sortSprints([...map.values()]);
+}
+
 // "%Done from Committed" per sprint — the same headline metric ops reports on,
 // computed here from live Jira instead of eazyBI. `pct` is null (not 0) when
 // nothing was committed: "no commitment" and "delivered none of what we

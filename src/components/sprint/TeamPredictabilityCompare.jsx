@@ -2,15 +2,19 @@ import { shortSprint } from "../../domain/metrics.js";
 import { Card } from "../common/Card.jsx";
 import { InfoTip } from "../common/InfoTip.jsx";
 
-// Cross-team "%Done from Committed" — the same shape ops reports out of
-// eazyBI, computed here from live Jira instead.
+// Cross-project "%Done from Committed" — the same comparison ops reports out
+// of eazyBI (Widget & Engine vs ACR), computed here from live Jira instead.
+//
+// Scope is the whole Jira PROJECT on both sides, not the team roster, so the
+// two numbers are measured identically and match how ops counts. (The card
+// above this one is the roster-scoped version — the truer read of your team's
+// own work, but not comparable to another project's total.)
 //
 // Deliberately NOT drawn as one chart with a shared X axis: after the 2026-08
-// split each team runs its own board and its own sprint numbering, so two
+// split each project runs its own board and its own sprint numbering, so two
 // bars sitting in the same column would imply "same sprint" when they are not.
-// Each team gets its own row of sprints, labelled with its own sprint names,
-// and the comparison happens on the headline average — which IS comparable,
-// because both are "share of what this team committed to that it delivered".
+// Each project gets its own row of sprints, labelled with its own sprint
+// names, and the comparison happens on the headline average.
 const pctClass = (pct, closed) => {
   if (!closed || pct == null) return "neutral";
   if (pct >= 80) return "ok";
