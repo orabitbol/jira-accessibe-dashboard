@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePersistentState } from "./usePersistentState.js";
 import { fetchAll, fetchSprintIssues, fetchChangelogs } from "../services/jiraApi.js";
 import { myTeam, leadTeams, setActiveTeam, resolveTeamId } from "../../teams.config.js";
-import { myTeamSprints, currentSprint, planningSprints, defaultPlanningSprint } from "../domain/metrics.js";
+import { myTeamSprints, mergeSprints, currentSprint, planningSprints, defaultPlanningSprint } from "../domain/metrics.js";
 import { makeT, RTL_LANGS } from "../i18n.js";
 
 // Central orchestration: owns all dashboard state + data loading.
@@ -18,8 +18,12 @@ export function useDashboard() {
 
   // Persisted UI state — survives a browser refresh.
   const [tab, setTab] = usePersistentState("we.tab", "sprint");
-  const [sprintId, setSprintId] = usePersistentState("we.sprintId", null);
-  const [planSprintId, setPlanSprintId] = usePersistentState("we.planSprintId", null);
+  // Sprint selections are deliberately NOT persisted: "which sprint" is a
+  // moving target, and a value saved weeks ago used to leave the dashboard
+  // opening on a long-closed sprint. They reset to the CURRENT sprint on every
+  // load, while still surviving tab switches inside the session.
+  const [sprintId, setSprintId] = useState(null);
+  const [planSprintId, setPlanSprintId] = useState(null);
   const [managerSince, setManagerSince] = usePersistentState("we.managerSince", myTeam.managerSince);
   // Which lens drives goal-attainment: "points" (Story Points) or "completion"
   // (# tasks done). Default is "completion" — simpler to reason about and
@@ -37,7 +41,7 @@ export function useDashboard() {
 
   const [phase, setPhase] = useState("loading"); // loading | ready | error
   const [error, setError] = useState("");
-  const [base, setBase] = useState(null);        // { resolved, active, openBugs }
+  const [base, setBase] = useState(null);        // { resolved, active, openBugs, open }
   const [updatedAt, setUpdatedAt] = useState(null);
 
   // lazy caches
@@ -54,10 +58,15 @@ export function useDashboard() {
     // and metrics recompute from fresh data, and anything no longer relevant drops.
     setSprintIssuesById({}); setOpenData(null); setStageData(null);
     try {
-      const [resolved, active, openBugs] = await Promise.all([
-        fetchAll("resolved"), fetchAll("active"), fetchAll("openBugs"),
+      // `open` is part of the BASE load (not lazy) because it is the only feed
+      // that reaches a sprint whose tickets are all still To Do — i.e. a sprint
+      // that just started. Without it the dashboard can't even see the current
+      // sprint on day one and falls back to the previous, closed one.
+      const [resolved, active, openBugs, open] = await Promise.all([
+        fetchAll("resolved"), fetchAll("active"), fetchAll("openBugs"), fetchAll("open"),
       ]);
-      setBase({ resolved, active, openBugs });
+      setBase({ resolved, active, openBugs, open });
+      setOpenData(open);
       setUpdatedAt(new Date());
       setPhase("ready");
     } catch (e) {
@@ -68,7 +77,12 @@ export function useDashboard() {
   // Initial load, and full reload whenever the active team changes.
   useEffect(() => { reload(); }, [activeTeamId]);
 
-  const sprints = useMemo(() => (base ? myTeamSprints([...base.resolved, ...base.active]) : []), [base]);
+  const sprints = useMemo(() => (base ? mergeSprints(
+    myTeamSprints([...base.resolved, ...base.active]),
+    // Open items add the just-started sprint; future sprints stay out of the
+    // sprint picker (they belong to the Planning tab).
+    myTeamSprints(base.open || [], { includeFuture: false }),
+  ) : []), [base]);
   const cur = useMemo(() => currentSprint(sprints), [sprints]);
   // Pick the current sprint on first load — and RE-pick it whenever the saved
   // sprint id isn't in the list any more (switching teams, or a sprint that now

@@ -120,20 +120,51 @@ const onMyBoard = sprintOnMyBoard;
 
 /* ----------------------------- Sprints ----------------------------------- */
 // Build my team's sprint list from the sprint field across issues.
-export function myTeamSprints(issues) {
+// `includeFuture: false` is used for the "open items" feed, which reaches into
+// sprints that haven't started yet — those belong on the Planning tab, not in
+// the sprint-health picker.
+export function myTeamSprints(issues, { includeFuture = true } = {}) {
   const map = new Map();
-  for (const n of issues) {
+  for (const n of issues || []) {
     if (teamForIssue(n) !== myTeam.name) continue;
     const arr = n.fields && n.fields.customfield_10020;
     if (!Array.isArray(arr)) continue;
     for (const sp of arr) {
       if (!sp || sp.id == null || !onMyBoard(sp)) continue;
+      if (!includeFuture && sp.state === "future") continue;
       if (!map.has(sp.id)) map.set(sp.id, { id: sp.id, name: sp.name, state: sp.state, startDate: sp.startDate, endDate: sp.endDate, completeDate: sp.completeDate });
     }
   }
-  return [...map.values()].sort((a, b) => (ms(a.startDate) || a.id) - (ms(b.startDate) || b.id));
+  return sortSprints([...map.values()]);
 }
-export function currentSprint(sprints) {
+export function sortSprints(list) {
+  return [...list].sort((a, b) => (ms(a.startDate) || a.id) - (ms(b.startDate) || b.id));
+}
+// Union of several sprint lists (first occurrence of an id wins), re-sorted.
+export function mergeSprints(...lists) {
+  const map = new Map();
+  for (const list of lists) for (const s of list || []) if (s && s.id != null && !map.has(s.id)) map.set(s.id, s);
+  return sortSprints([...map.values()]);
+}
+
+// The sprint the team is in RIGHT NOW. Date window first, because that is what
+// "current" means to a person looking at the board: a sprint whose start/end
+// bracket today wins even if Jira's `state` on the cached sprint object is
+// stale (issue payloads carry whatever state was written when they were last
+// indexed). `state === "active"` is the tie-breaker, then the newest closed
+// sprint, so the dashboard still opens on something sensible between sprints.
+export function currentSprint(sprints, now = Date.now()) {
+  const inWindow = sprints.filter((s) => {
+    const start = ms(s.startDate);
+    const end = ms(s.completeDate || s.endDate);
+    return start != null && end != null && now >= start && now <= end;
+  });
+  const pick = (list) => {
+    const act = list.filter((s) => s.state === "active");
+    const use = act.length ? act : list;
+    return use[use.length - 1];
+  };
+  if (inWindow.length) return pick(inWindow);
   const active = sprints.filter((s) => s.state === "active");
   if (active.length) return active[active.length - 1];
   const closed = sprints.filter((s) => s.state === "closed");
