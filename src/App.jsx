@@ -81,6 +81,10 @@ export default function App() {
               onLoadStages={d.loadStages}
               mode={d.attainmentMode}
               activeIssues={base.active}
+              compare={d.compare}
+              compareLoading={d.compareLoading}
+              onLoadCompare={d.loadCompare}
+              activeTeamId={d.activeTeamId}
               t={t}
             />
           )}

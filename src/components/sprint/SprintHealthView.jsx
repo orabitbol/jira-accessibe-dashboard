@@ -8,9 +8,10 @@ import { Explainer } from "../common/Explainer.jsx";
 import { DevCard } from "./DevCard.jsx";
 import { CommitmentTrend } from "./CommitmentTrend.jsx";
 import { PredictabilityChart } from "./PredictabilityChart.jsx";
+import { TeamPredictabilityCompare } from "./TeamPredictabilityCompare.jsx";
 import { StageAnalysis } from "./StageAnalysis.jsx";
 
-export function SprintHealthView({ selectedSprint, recentSprints, issuesById, loading, stageData, stageLoading, onLoadStages, mode = "points", activeIssues, t }) {
+export function SprintHealthView({ selectedSprint, recentSprints, issuesById, loading, stageData, stageLoading, onLoadStages, mode = "points", activeIssues, compare, compareLoading, onLoadCompare, activeTeamId, t }) {
   const issues = (selectedSprint && issuesById[selectedSprint.id]) || null;
   // Real added/removed-mid-sprint detection needs each issue's "Sprint" field
   // history — reuse whatever Stage Analysis has already loaded for THIS
@@ -117,6 +118,8 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
       </Card>
 
       <PredictabilityChart series={series} mode={mode} t={t} />
+
+      <TeamPredictabilityCompare compare={compare} loading={compareLoading} onLoad={onLoadCompare} activeTeamId={activeTeamId} t={t} />
 
       <CommitmentTrend trend={trend} recentSprints={recentSprints} sprintIssuesById={issuesById} mode={mode} t={t} />
 

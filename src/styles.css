@@ -462,3 +462,54 @@ tr.trend-divider td { background: #eef2ff; color: #3730a3; font-weight: 700; fon
 .dot.ok { color: #22c55e; } .dot.warn { color: #f59e0b; }
 
 footer { margin-top: 24px; line-height: 1.7; }
+
+/* --- Sprint delivery predictability (%Done from Committed) ---------------- */
+.predict-summary { display: flex; align-items: baseline; gap: 9px; margin-bottom: 14px; }
+.predict-summary-val { font-size: 27px; font-weight: 750; color: #1a1d24; line-height: 1.1; }
+.predict-summary-lbl { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .03em; display: inline-flex; align-items: center; }
+.predict-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: #475569; margin-bottom: 10px; }
+.predict-legend-item { display: flex; align-items: center; gap: 6px; cursor: default; }
+.predict-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+.predict-dot.committed { background: #c7c9ff; }
+.predict-dot.done { background: #4f46e5; }
+.predict-chart { display: flex; align-items: flex-end; gap: 16px; overflow-x: auto; padding: 4px 2px 0; }
+.predict-group { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1 1 0; min-width: 66px; }
+.predict-pct { font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; cursor: default; }
+.predict-pct.ok { background: #dcfce7; color: #166534; }
+.predict-pct.warn { background: #fef3c7; color: #92400e; }
+.predict-pct.bad { background: #fee2e2; color: #991b1b; }
+.predict-pct.neutral { background: #f1f5f9; color: #64748b; }
+.predict-bars { display: flex; align-items: flex-end; justify-content: center; gap: 6px; height: 132px; width: 100%; }
+.predict-bar-wrap { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; flex: 1 1 0; max-width: 26px; cursor: default; }
+.predict-val { font-size: 10.5px; font-weight: 700; color: #64748b; margin-bottom: 3px; }
+.predict-bar { width: 100%; border-radius: 4px 4px 0 0; transition: filter .12s ease; }
+.predict-bar.committed { background: #c7c9ff; }
+.predict-bar.done { background: #4f46e5; }
+.predict-bar.done.inprogress { background: repeating-linear-gradient(45deg, #4f46e5 0 5px, #8b8aff 5px 10px); }
+.predict-bar-wrap:hover .predict-bar { filter: brightness(1.08); }
+.predict-label { font-size: 11px; color: #64748b; text-align: center; white-space: nowrap; cursor: default; }
+
+/* --- Cross-team %Done from Committed comparison --------------------------- */
+.cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.cmp-team { border: 1px solid #e6e8ec; border-radius: 12px; padding: 14px 16px; background: #fff; }
+.cmp-team.mine { background: #f7f7ff; border-color: #d9daff; }
+.cmp-team-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cmp-team-name { font-size: 13.5px; font-weight: 750; color: #1e293b; }
+.cmp-team-project { font-size: 11px; font-weight: 700; color: #6b7280; background: #f1f3f6; border-radius: 5px; padding: 2px 6px; }
+.cmp-team-head .pill { margin-inline-start: auto; }
+.cmp-avg { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+.cmp-avg-val { font-size: 27px; font-weight: 750; color: #1a1d24; line-height: 1.1; }
+.cmp-avg-lbl { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .03em; }
+.cmp-sprints { display: flex; flex-direction: column; gap: 6px; }
+.cmp-sprint { display: flex; align-items: center; gap: 9px; }
+.cmp-sprint-label { font-size: 11.5px; color: #64748b; width: 84px; flex: 0 0 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+.cmp-track { flex: 1 1 auto; height: 14px; border-radius: 5px; background: #f1f3f6; overflow: hidden; cursor: default; }
+.cmp-fill { height: 100%; border-radius: 5px; transition: width .2s ease; }
+.cmp-fill.ok { background: #16a34a; }
+.cmp-fill.warn { background: #f59e0b; }
+.cmp-fill.bad { background: #dc2626; }
+.cmp-fill.neutral { background: #94a3b8; }
+.cmp-fill.inprogress { opacity: .55; }
+.cmp-pct { font-size: 11.5px; font-weight: 700; width: 38px; flex: 0 0 auto; text-align: end; cursor: default; }
+.cmp-pct.ok { color: #166534; } .cmp-pct.warn { color: #92400e; } .cmp-pct.bad { color: #991b1b; } .cmp-pct.neutral { color: #64748b; }
+.cmp-foot { margin-top: 12px; display: flex; align-items: center; }

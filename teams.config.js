@@ -83,6 +83,21 @@ export function setActiveTeam(id) {
   myTeam = leadTeams.find((t) => t.id === resolved) || leadTeams[0];
 }
 
+// Run a SYNCHRONOUS computation as if another lead-team were the active one,
+// then restore. Everything in src/domain reads the `myTeam` live binding, so
+// this is how the cross-team comparison reuses the exact same metric code
+// instead of a second, subtly different implementation of it.
+// Sync only — never pass an async fn: the team would be restored before the
+// work inside actually ran.
+export function withTeam(teamId, fn) {
+  const previous = myTeam.id;
+  setActiveTeam(teamId);
+  try { return fn(); } finally { setActiveTeam(previous); }
+}
+
+// Projects owned by a lead-team (as opposed to the comparison projects).
+export const leadProjects = [...new Set(leadTeams.flatMap((t) => [t.key, ...(t.legacyBoards || []).map((b) => b.projectKey)]))].filter(Boolean);
+
 // Comparison teams — grouped by their Jira project.
 export const otherTeams = [
   { name: "Apps & Scan", projectKey: "AS" },

@@ -521,6 +521,29 @@ export function teamCommitmentSeries(perSprint) {
   }));
 }
 
+// "%Done from Committed" per sprint — the same headline metric ops reports on,
+// computed here from live Jira instead of eazyBI. `pct` is null (not 0) when
+// nothing was committed: "no commitment" and "delivered none of what we
+// promised" are different statements and must not look alike on a chart.
+export function predictabilityRows(series, mode = "points") {
+  const isCompletion = mode === "completion";
+  return (series || []).map((s) => {
+    const committed = isCompletion ? s.committedItems : s.committedPts;
+    const done = isCompletion ? s.doneItems : s.donePts;
+    return {
+      id: s.id, name: s.name, closed: s.closed, committed, done,
+      pct: committed > 0 ? Math.round((done / committed) * 100) : null,
+    };
+  });
+}
+// Headline average over CLOSED sprints only — a sprint still running would drag
+// the number down every time it is looked at mid-sprint.
+export function predictabilityAverage(rows) {
+  const pcts = (rows || []).filter((r) => r.closed && r.pct != null).map((r) => r.pct);
+  if (!pcts.length) return null;
+  return { pct: Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length), sprints: pcts.length };
+}
+
 /* --------------------------- Planning (future) ---------------------------- */
 // My team's upcoming sprints (active or future) derived from open issues.
 export function planningSprints(openIssues) {

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePersistentState } from "./usePersistentState.js";
 import { fetchAll, fetchSprintIssues, fetchChangelogs } from "../services/jiraApi.js";
-import { myTeam, leadTeams, setActiveTeam, resolveTeamId } from "../../teams.config.js";
-import { myTeamSprints, mergeSprints, currentSprint, planningSprints, defaultPlanningSprint } from "../domain/metrics.js";
+import { myTeam, leadTeams, setActiveTeam, resolveTeamId, withTeam } from "../../teams.config.js";
+import { myTeamSprints, mergeSprints, currentSprint, planningSprints, defaultPlanningSprint, sprintCommitment, teamCommitmentSeries, predictabilityRows, predictabilityAverage } from "../domain/metrics.js";
 import { makeT, RTL_LANGS } from "../i18n.js";
 
 // Central orchestration: owns all dashboard state + data loading.
@@ -51,12 +51,17 @@ export function useDashboard() {
   const [stageLoading, setStageLoading] = useState(null);
   const [openData, setOpenData] = useState(null);
   const [openLoading, setOpenLoading] = useState(false);
+  // Cross-team delivery comparison (%Done from Committed, every lead-team).
+  // Lazy + explicit: it needs one Jira query per sprint per team, so it loads
+  // on demand behind a button rather than on every page view.
+  const [compare, setCompare] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(null); // { done, total } | null
 
   async function reload() {
     setPhase("loading"); setError("");
     // Clear lazy caches so a refresh truly refreshes EVERYTHING — recommendations
     // and metrics recompute from fresh data, and anything no longer relevant drops.
-    setSprintIssuesById({}); setOpenData(null); setStageData(null);
+    setSprintIssuesById({}); setOpenData(null); setStageData(null); setCompare(null);
     try {
       // `open` is part of the BASE load (not lazy) because it is the only feed
       // that reaches a sprint whose tickets are all still To Do — i.e. a sprint
@@ -157,6 +162,52 @@ export function useDashboard() {
     if (d) setPlanSprintId(d.id);
   }, [planSprints, planSprintId]);
 
+  // The comparison is computed in one specific lens (points vs tasks); flipping
+  // the lens must not leave stale numbers labelled with the new one.
+  useEffect(() => { setCompare(null); }, [attainmentMode]);
+
+  // Builds "%Done from Committed" per sprint for EVERY lead-team, reusing the
+  // exact same metric code as the single-team view by running it once per team
+  // through withTeam() — so the comparison can never drift from the number
+  // shown on the team's own card.
+  async function loadCompare() {
+    if (!base || compareLoading) return;
+    const plan = leadTeams.map((team) => ({
+      team,
+      sprints: withTeam(team.id, () => mergeSprints(
+        myTeamSprints([...base.resolved, ...base.active]),
+        myTeamSprints(base.open || [], { includeFuture: false }),
+      )).slice(-6),
+    }));
+    const needed = [...new Set(plan.flatMap((p) => p.sprints.map((s) => s.id)))].filter((id) => !sprintIssuesById[id]);
+    setCompareLoading({ done: 0, total: needed.length });
+    try {
+      const fetched = {};
+      let done = 0;
+      // Sequential on purpose: each call is itself paged, and firing a dozen
+      // paged searches at Jira at once is how you get rate-limited.
+      for (const id of needed) {
+        fetched[id] = await fetchSprintIssues(id);
+        setCompareLoading({ done: ++done, total: needed.length });
+      }
+      const byId = { ...sprintIssuesById, ...fetched };
+      setSprintIssuesById(byId);
+      const mode = attainmentMode;
+      const byTeam = plan.map(({ team, sprints }) => withTeam(team.id, () => {
+        const per = sprints
+          .filter((sp) => byId[sp.id])
+          .map((sp) => ({ sprint: sp, rows: sprintCommitment(byId[sp.id], sp, mode) }));
+        const rows = predictabilityRows(teamCommitmentSeries(per.filter((x) => x.rows.length)), mode);
+        return { id: team.id, name: team.name, project: team.key, rows, avg: predictabilityAverage(rows) };
+      }));
+      setCompare({ byTeam, mode });
+    } catch (e) {
+      setError(String(e && e.message ? e.message : e));
+    } finally {
+      setCompareLoading(null);
+    }
+  }
+
   async function loadStages() {
     const issues = sprintIssuesById[sprintId] || [];
     const mine = issues.filter((n) => n.fields.assignee && myTeam.members.some((m) => m.id === n.fields.assignee.accountId));
@@ -175,6 +226,7 @@ export function useDashboard() {
     sprints, selectedSprint, sprintId, setSprintId,
     recentSprints, sprintIssuesById, sprintLoading,
     stageData: stageDataForSelected, stageLoading, loadStages,
+    compare, compareLoading, loadCompare,
     openData, openLoading, planSprints, planSprintId, setPlanSprintId,
     managerSince, setManagerSince,
     leadTeams, activeTeamId, setActiveTeamId: setStoredTeamId,
