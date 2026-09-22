@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePersistentState } from "./usePersistentState.js";
 import { fetchAll, fetchSprintIssues, fetchChangelogs } from "../services/jiraApi.js";
-import { myTeam, leadTeams, setActiveTeam } from "../../teams.config.js";
+import { myTeam, leadTeams, setActiveTeam, resolveTeamId } from "../../teams.config.js";
 import { myTeamSprints, currentSprint, planningSprints, defaultPlanningSprint } from "../domain/metrics.js";
 import { makeT, RTL_LANGS } from "../i18n.js";
 
@@ -9,8 +9,12 @@ import { makeT, RTL_LANGS } from "../i18n.js";
 export function useDashboard() {
   // Active lead-team (persisted). Apply synchronously so every computation this
   // render reads the right team (teams.config.myTeam is a live binding).
-  const [activeTeamId, setActiveTeamId] = usePersistentState("we.team", leadTeams[0].id);
+  const [storedTeamId, setStoredTeamId] = usePersistentState("we.team", leadTeams[0].id);
+  // A team id saved before the 2026-08 split (e.g. "we") still resolves to a
+  // real team, so an old browser doesn't silently fall back to a blank header.
+  const activeTeamId = resolveTeamId(storedTeamId);
   setActiveTeam(activeTeamId);
+  useEffect(() => { if (storedTeamId !== activeTeamId) setStoredTeamId(activeTeamId); }, [storedTeamId, activeTeamId]);
 
   // Persisted UI state — survives a browser refresh.
   const [tab, setTab] = usePersistentState("we.tab", "sprint");
@@ -66,7 +70,16 @@ export function useDashboard() {
 
   const sprints = useMemo(() => (base ? myTeamSprints([...base.resolved, ...base.active]) : []), [base]);
   const cur = useMemo(() => currentSprint(sprints), [sprints]);
-  useEffect(() => { if (cur && sprintId == null) setSprintId(cur.id); }, [cur, sprintId]);
+  // Pick the current sprint on first load — and RE-pick it whenever the saved
+  // sprint id isn't in the list any more (switching teams, or a sprint that now
+  // lives on another board after the split). Without this the views would keep
+  // pointing at a sprint that no longer exists for this team.
+  useEffect(() => {
+    if (!sprints.length) return;
+    if (sprintId != null && sprints.some((s) => s.id === sprintId)) return;
+    const fallback = cur || sprints[sprints.length - 1];
+    if (fallback) setSprintId(fallback.id);
+  }, [sprints, cur, sprintId]);
 
   const recentSprints = useMemo(() => {
     if (!sprints.length) return [];
@@ -124,10 +137,10 @@ export function useDashboard() {
 
   const planSprints = useMemo(() => (openData ? planningSprints(openData) : []), [openData]);
   useEffect(() => {
-    if (planSprints.length && planSprintId == null) {
-      const d = defaultPlanningSprint(planSprints);
-      if (d) setPlanSprintId(d.id);
-    }
+    if (!planSprints.length) return;
+    if (planSprintId != null && planSprints.some((s) => s.id === planSprintId)) return;
+    const d = defaultPlanningSprint(planSprints);
+    if (d) setPlanSprintId(d.id);
   }, [planSprints, planSprintId]);
 
   async function loadStages() {
@@ -150,7 +163,8 @@ export function useDashboard() {
     stageData: stageDataForSelected, stageLoading, loadStages,
     openData, openLoading, planSprints, planSprintId, setPlanSprintId,
     managerSince, setManagerSince,
-    leadTeams, activeTeamId, setActiveTeamId,
+    leadTeams, activeTeamId, setActiveTeamId: setStoredTeamId,
+    projectTitle: myTeam.projectName || myTeam.name,
     attainmentMode, setAttainmentMode,
     lang, setLang, t,
   };

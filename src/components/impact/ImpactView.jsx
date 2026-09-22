@@ -54,7 +54,7 @@ export function ImpactView({ sprints, sprintIssuesById, sprintLoading, managerSi
           <li>An active (in-progress) sprint is <u>not</u> included in the averages — it's shown separately as an "in progress" card, until it closes.</li>
           <li>Once another sprint closes, the "since" side updates and the delta appears/updates.</li>
           <li>"Goal attainment" is measured per the toggle at the top of the page — Story Points or tasks completed.</li>
-          <li><b>Median lead time</b> = workdays (weekends excluded) from a card's creation to its resolution — the full lifecycle, not clipped to one sprint. <b>Velocity</b> and <b>Items closed</b> are scoped to your team's roster (wherever they worked), not to a single project — so these aren't directly comparable to eazyBI's per-project Throughput Trend on the eazyBI tab, which counts everyone in the Widget & Engine project regardless of who's on your roster.</li>
+          <li><b>Median lead time</b> = workdays (weekends excluded) from a card's creation to its resolution — the full lifecycle, not clipped to one sprint. <b>Velocity</b> and <b>Items closed</b> are scoped to your team's roster (wherever they worked), not to a single project — so these aren't directly comparable to eazyBI's per-project Throughput Trend on the eazyBI tab, which counts everyone in that Jira project regardless of who's on your roster.</li>
         </ul>
       </Explainer>
       <Card title="Before vs. since you've been leading"

@@ -43,9 +43,10 @@ export function SprintHealthView({ selectedSprint, recentSprints, issuesById, lo
     attainment: 0, state: "none",
   })), [rows]);
 
-  // Deliberately scoped to the ACTIVE sub-team's roster (not the whole WE
-  // project) — Or's team and Shaul's team share one Jira project/board, so a
-  // project-only scope (like eazyBI's per-project cycle-time reports) would
+  // Deliberately scoped to the ACTIVE team's roster (not the whole project) —
+  // a roster scope still counts a member's work wherever it happened, and it
+  // survives a project move; a project-only scope (like eazyBI's per-project
+  // cycle-time reports) would
   // merge both sub-teams together and stop being a per-lead view. The
   // otherWorkByPerson() layer below covers the "does someone have work
   // outside what's being measured" concern without collapsing that split.

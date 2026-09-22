@@ -1,5 +1,5 @@
 // Pure aggregation helpers (no React, no network).
-import { teamForIssue, myTeam } from "../../teams.config.js";
+import { teamForIssue, myTeam, sprintOnMyBoard, stripSprintPrefix } from "../../teams.config.js";
 
 export const DAY = 86400000;
 export const STUCK_DAYS = 5;          // time in ONE WORKING status longer than this => "stuck" flag
@@ -110,10 +110,13 @@ export function leadDays(issue) {
   const d = workdayMs(cMs, rMs) / DAY;
   return d >= 0 ? d : null;
 }
-export const shortSprint = (name) => String(name).replace(/Widget Engine /i, "").replace(/Sprint /i, "S");
+export const shortSprint = (name) => stripSprintPrefix(name).replace(/Sprint /i, "S");
 // True if a sprint belongs to my team's board (filters out other-project sprints
-// a teammate happened to work in). When boardId is unknown, don't filter.
-const onMyBoard = (sp) => !myTeam.boardId || sp.boardId == null || sp.boardId === myTeam.boardId;
+// a teammate happened to work in). Defined in teams.config.js because it also
+// has to honour a team's LEGACY board — the board it lived on before a split —
+// so history doesn't disappear the day the team moves. When boardId is unknown,
+// don't filter.
+const onMyBoard = sprintOnMyBoard;
 
 /* ----------------------------- Sprints ----------------------------------- */
 // Build my team's sprint list from the sprint field across issues.
@@ -819,7 +822,8 @@ export const NOT_STARTED = new Set(["To Do", "Backlog", "Selected for Developmen
 export const NON_WORK_STATUSES = new Set(["Archived"]);
 
 // Statuses the board itself treats as pre-work, not active development —
-// source: Engine & Widget board (id 397) → Board settings → Columns →
+// source: board column mapping (ACR board 2022, inherited unchanged from the
+// Engine & Widget board 397 it was split out of) → Board settings → Columns →
 // "Blocked" is mapped into the same "To Do" column as Open/To Do, not into
 // "In Progress". Excluded from cycle time for the same reason NOT_STARTED
 // is: paused/waiting time isn't work actually happening on the ticket.
@@ -858,9 +862,9 @@ export function stageGroupForStatus(status) {
 // Cross-project "also on their plate" signal — visibility only, never mixed
 // into the measured totals above. For each roster member, lists currently
 // ACTIVE tickets (statusCategory = In Progress, any project) that are NOT
-// already part of the scope being measured (`countedKeys`) — e.g. a WE-team
-// member who picked up a Portal ticket, or has other open WE items outside
-// this sprint. Lets a manager see when someone's real workload extends
+// already part of the scope being measured (`countedKeys`) — e.g. a roster
+// member who picked up a Portal ticket, or has other open items in their own
+// project outside this sprint. Lets a manager see when someone's real workload extends
 // beyond what this view measures, without diluting the measurement itself.
 export function otherWorkByPerson(activeIssues, members, countedKeys) {
   const counted = new Set(countedKeys || []);

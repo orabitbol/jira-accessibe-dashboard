@@ -1,9 +1,27 @@
-# Widget & Engine — Team Metrics Dashboard
+# Team Metrics Dashboard
 
-A small, self-contained **React + Vite** dashboard for the *Widget & Engine (WE)*
-Jira project. It pulls data from Jira **read-only** and shows sprint health,
+A small, self-contained **React + Vite** dashboard for Or's team — the
+*Accessibility Code Remediation* (**ACR**, board 2022) Jira project — with
+Shaul's team (*Core Engine & accessWidget*, **WE**, board 397) selectable from
+the same header. It pulls data from Jira **read-only** and shows sprint health,
 planning, live status, leadership-impact, and rule-based recommendations. It
 never writes anything back to Jira.
+
+## The 2026-08-19 split
+
+Both teams used to share the WE project and board 397. On 2026-08-19 Or's team
+moved to its own ACR project + board (sprints now read `ACR Sprint N …`).
+Everything before that date still lives on board 397, so `teams.config.js`
+declares 397 as a **legacy board** for Or's team, with a cut-off date:
+
+- sprints on board 397 that **started before** 2026-08-19 → still counted as
+  Or's team history (trends, velocity, My Impact stay continuous);
+- sprints on 397 that started after → Shaul's team's, never mixed in;
+- pre-split sprint labels are shown abbreviated (`WE·S4 Q3 2026`) so they can't
+  be confused with a current `S4 Q3 2026`.
+
+Changing team → project/board membership is a one-file edit in
+`teams.config.js`; nothing else hard-codes a project key or board id.
 
 ## What it shows (5 tabs)
 
@@ -78,7 +96,7 @@ Set these environment variables (locally in `.env.local`, and in Vercel under
 | `JIRA_BASE_URL`   | `https://accessibe-org.atlassian.net`  |
 | `JIRA_EMAIL`      | `orab@accessibe.com`                   |
 | `JIRA_API_TOKEN`  | *(your token — keep secret)*           |
-| `JIRA_PROJECT_KEY`| `WE`                                   |
+| `JIRA_PROJECT_KEY`| `ACR` *(informational — real scope is `teams.config.js`)* |
 
 See `.env.example`.
 
@@ -141,8 +159,14 @@ Separation of concerns: **domain** (pure calculations) ← **services** (network
 
 ## Customize
 
-- **Different project:** change `JIRA_PROJECT_KEY` (and the queries in
-  `lib/jira-core.js` if you want a different scope/time window).
+- **Different project / board:** edit `teams.config.js` — `key`, `boardId`,
+  `sprintPrefix`, `members`, and `legacyBoards` for anything the team used to
+  live on. `JIRA_PROJECT_KEY` in the env is informational only; the projects
+  actually queried are derived from `allProjects` in that file.
+- **eazyBI:** its reports are per Jira project and hard-coded by id in
+  `lib/eazybi-core.js`. A team with no report of its own sets
+  `eazybiReportKey: null` and the eazyBI tab says so rather than labelling
+  another project's numbers "your team".
 - **Different story-points field:** this Jira instance uses `customfield_10032`
   (falling back to `customfield_10016`). Other instances may differ — adjust
   in `lib/jira-core.js` and `src/domain/metrics.js`.

@@ -16,7 +16,7 @@ export function SprintCycleBar({ row, columns, isLatest = false }) {
   const sum = stageVals.reduce((a, b) => a + b, 0) || 1;
   const issuesIdx = columns.indexOf("Issues resolved");
   const medianIdx = columns.indexOf("Median Cycle Time");
-  const shortLabel = row.label.replace(/^(Widget Engine|Portal|Apps & Scan|accessFlow) /i, "");
+  const shortLabel = row.label.replace(/^(ACR|Widget Engine|Portal|Apps & Scan|accessFlow) /i, "");
 
   return (
     <div className={"sprint-cycle-row" + (isLatest ? " latest" : "")}>

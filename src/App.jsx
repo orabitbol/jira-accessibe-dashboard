@@ -21,7 +21,7 @@ export default function App() {
   return (
     <div className="wrap">
       <Header updatedAt={updatedAt} loading={phase === "loading"} onReload={reload}
-        leadTeams={d.leadTeams} activeTeamId={d.activeTeamId} onTeamChange={d.setActiveTeamId}
+        leadTeams={d.leadTeams} activeTeamId={d.activeTeamId} onTeamChange={d.setActiveTeamId} projectTitle={d.projectTitle}
         attainmentMode={d.attainmentMode} onAttainmentModeChange={d.setAttainmentMode}
         lang={d.lang} onLangChange={d.setLang} t={t} />
       <Tabs tab={tab} onChange={setTab} t={t} />

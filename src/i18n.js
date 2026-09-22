@@ -21,7 +21,7 @@ export const LANGS = [
 export const RTL_LANGS = new Set(["he"]);
 
 const en = {
-  "app.title": "Widget & Engine",
+  "app.title": "Team Metrics",
   "app.subtitle": "Team Metrics",
   "app.dataAsOf": "Data as of",
   "app.loading": "Loading…",
@@ -197,8 +197,8 @@ const en = {
   "stage.reopenedLabel": "🔁 {n} reopened",
   "stage.noTasksPerson": "No tasks assigned to this person in this sprint.",
   "stage.allArchived": "All of this person's cards in the sprint were archived — no work data to show.",
-  "stage.footer": "Hover a segment for details · numbers are average per card in workdays (weekends excluded, not a sum or a single card) · dashed = To-Do (waiting) · Blocked counts as waiting, not active work · archived cards are excluded from the calculation · work time is split by whoever actually held the card at each moment · \"also has N active items\" shows work outside this view's scope (other projects, or WE items outside this sprint) without affecting the numbers above · the pill next to each name mirrors their Goal Attainment card above, so you don't need to scroll up to see who's meeting the standard",
-  "stage.otherWorkTitle": "Current active work in other projects, or other WE items outside this sprint — as of today, not as of this sprint's dates",
+  "stage.footer": "Hover a segment for details · numbers are average per card in workdays (weekends excluded, not a sum or a single card) · dashed = To-Do (waiting) · Blocked counts as waiting, not active work · archived cards are excluded from the calculation · work time is split by whoever actually held the card at each moment · \"also has N active items\" shows work outside this view's scope (other projects, or items in your own project outside this sprint) without affecting the numbers above · the pill next to each name mirrors their Goal Attainment card above, so you don't need to scroll up to see who's meeting the standard",
+  "stage.otherWorkTitle": "Current active work in other projects, or other items in your own project outside this sprint — as of today, not as of this sprint's dates",
   "stage.otherWorkShow": "Also has {n} active items right now, outside this view",
   "stage.excludedShow": "Show {n} cards excluded from the calculation",
   "stage.changedShow": "Show {n} cards changed mid-sprint",
@@ -215,7 +215,7 @@ const en = {
 };
 
 const he = {
-  "app.title": "Widget & Engine",
+  "app.title": "Team Metrics",
   "app.subtitle": "מדדי צוות",
   "app.dataAsOf": "נתונים מעודכנים ל־",
   "app.loading": "טוען…",
@@ -391,8 +391,8 @@ const he = {
   "stage.reopenedLabel": "🔁 {n} נפתחו מחדש",
   "stage.noTasksPerson": "לא הוקצו משימות לאדם הזה בספרינט הזה.",
   "stage.allArchived": "כל הכרטיסים של האדם הזה בספרינט הועברו לארכיון — אין נתוני עבודה להצגה.",
-  "stage.footer": "העבר עכבר על מקטע לפרטים · המספרים הם ממוצע לכרטיס בימי עבודה (לא כולל סופי שבוע, לא סכום או כרטיס בודד) · מקווקו = To-Do (המתנה) · Blocked נספר כהמתנה, לא כעבודה פעילה · כרטיסים בארכיון מוחרגים מהחישוב · זמן העבודה מחולק לפי מי שבאמת החזיק בכרטיס בכל רגע · \"יש עוד N פריטים פעילים\" מציג עבודה מעבר לתחום התצוגה הזו (פרויקטים אחרים, או פריטי WE מחוץ לספרינט הזה) בלי להשפיע על המספרים למעלה · התג ליד כל שם משקף את כרטיס העמידה ביעדים למעלה, כדי שלא תצטרך לגלול חזרה כדי לראות מי עומד בסטנדרט",
-  "stage.otherWorkTitle": "עבודה פעילה כרגע בפרויקטים אחרים, או פריטי WE אחרים מחוץ לספרינט הזה — נכון להיום, לא לפי תאריכי הספרינט הזה",
+  "stage.footer": "העבר עכבר על מקטע לפרטים · המספרים הם ממוצע לכרטיס בימי עבודה (לא כולל סופי שבוע, לא סכום או כרטיס בודד) · מקווקו = To-Do (המתנה) · Blocked נספר כהמתנה, לא כעבודה פעילה · כרטיסים בארכיון מוחרגים מהחישוב · זמן העבודה מחולק לפי מי שבאמת החזיק בכרטיס בכל רגע · \"יש עוד N פריטים פעילים\" מציג עבודה מעבר לתחום התצוגה הזו (פרויקטים אחרים, או פריטים בפרויקט שלך מחוץ לספרינט הזה) בלי להשפיע על המספרים למעלה · התג ליד כל שם משקף את כרטיס העמידה ביעדים למעלה, כדי שלא תצטרך לגלול חזרה כדי לראות מי עומד בסטנדרט",
+  "stage.otherWorkTitle": "עבודה פעילה כרגע בפרויקטים אחרים, או פריטים אחרים בפרויקט שלך מחוץ לספרינט הזה — נכון להיום, לא לפי תאריכי הספרינט הזה",
   "stage.otherWorkShow": "יש גם {n} פריטים פעילים כרגע, מעבר לתצוגה הזו",
   "stage.excludedShow": "הצג {n} כרטיסים שהוחרגו מהחישוב",
   "stage.changedShow": "הצג {n} כרטיסים ששונו במהלך הספרינט",

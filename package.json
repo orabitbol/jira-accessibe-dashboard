@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Read-only team metrics dashboard for the Widget & Engine (WE) Jira project.",
+  "description": "Read-only team metrics dashboard for the Accessibility Code Remediation (ACR) and Core Engine & accessWidget (WE) Jira projects.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

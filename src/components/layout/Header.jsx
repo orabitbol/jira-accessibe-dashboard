@@ -1,7 +1,7 @@
 import { LANGS } from "../../i18n.js";
 
 export function Header({
-  updatedAt, loading, onReload, leadTeams = [], activeTeamId, onTeamChange,
+  updatedAt, loading, onReload, leadTeams = [], activeTeamId, onTeamChange, projectTitle,
   attainmentMode, onAttainmentModeChange, lang, onLangChange, t,
 }) {
   // The two lenses for goal-attainment: Story Points (effort-weighted) vs.
@@ -30,7 +30,7 @@ export function Header({
               </button>
             ))}
           </div>
-          <h1>{t("app.title")} <span className="muted">· {t("app.subtitle")}</span></h1>
+          <h1>{projectTitle || t("app.title")} <span className="muted">· {t("app.subtitle")}</span></h1>
         </div>
         <div className="muted small">
           {updatedAt ? <>{t("app.dataAsOf")} <b>{updatedAt.toLocaleString("en-GB")}</b></> : t("app.loading")}

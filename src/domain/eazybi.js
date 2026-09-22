@@ -45,7 +45,7 @@ export const EAZYBI_REPORTS = [
   { key: "throughputTrend", label: "Throughput Trend", kind: "time" },
   { key: "deliverySpeed", label: "Delivery Speed & Predictability Trend", kind: "time" },
   { key: "workflowDistribution", label: "Workflow Distribution", kind: "time-percent" },
-  { key: "cycleTimeWidgetEngine", label: "Widget & Engine", kind: "sprint" },
+  { key: "cycleTimeWidgetEngine", label: "Core Engine & accessWidget", kind: "sprint" },
   { key: "cycleTimePortal", label: "Portal", kind: "sprint" },
   { key: "cycleTimeAppsScan", label: "Apps & Scan", kind: "sprint" },
   { key: "cycleTimeAccessFlow", label: "accessFlow", kind: "sprint" },

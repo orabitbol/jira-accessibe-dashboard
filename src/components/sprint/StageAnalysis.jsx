@@ -15,7 +15,7 @@ const GROUP_I18N_KEY = {
 };
 
 // Reveals tickets a person is also carrying OUTSIDE this Stage Analysis scope
-// (other projects, or other WE items outside this sprint) — visibility only,
+// (other projects, or other items in your own project outside this sprint) — visibility only,
 // never mixed into the numbers above, so real workload doesn't quietly "fall
 // between the chairs" just because it isn't part of what this view measures.
 function OtherWorkNote({ items, t }) {

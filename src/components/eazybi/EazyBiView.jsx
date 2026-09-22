@@ -10,9 +10,13 @@ import { Sparkline } from "./Sparkline.jsx";
 import { TrendBadge } from "./TrendBadge.jsx";
 import { SprintCycleBar } from "./SprintCycleBar.jsx";
 import { IconTeam, IconChart, IconGaugeSpeed, IconLayers, IconClock } from "./icons.jsx";
+import { myTeam } from "../../../teams.config.js";
 
+// eazyBI reports are PER JIRA PROJECT. Which one (if any) is the active
+// team's own is decided by teams.config.js -> eazybiReportKey, so a team that
+// moves projects never silently keeps another team's card flagged "Your team".
 const TEAM_CARDS = [
-  { key: "cycleTimeWidgetEngine", title: "Widget & Engine", mine: true },
+  { key: "cycleTimeWidgetEngine", title: "Core Engine & accessWidget" },
   { key: "cycleTimePortal", title: "Portal" },
   { key: "cycleTimeAppsScan", title: "Apps & Scan" },
   { key: "cycleTimeAccessFlow", title: "accessFlow" },
@@ -180,8 +184,16 @@ export function EazyBiView() {
             </span>
           ))}
         </div>
+        {!myTeam.eazybiReportKey && (
+          <div className="banner load" style={{ marginBottom: 14 }}>
+            No eazyBI cycle-time report exists yet for <b>{myTeam.projectName || myTeam.name}</b> ({myTeam.key}) — eazyBI reports are built per Jira project,
+            and this team moved to its own project. The cards below are the other projects, so none of them is your team's work.
+            Everything else on this dashboard reads live Jira data and is already scoped to your team.
+            <br />Once a <b>{myTeam.key}</b> cycle-time report exists in eazyBI, add it to <code>lib/eazybi-core.js</code> + <code>src/domain/eazybi.js</code> and point <code>eazybiReportKey</code> at it in <code>teams.config.js</code>.
+          </div>
+        )}
         <div className="eazybi-team-grid">
-          {TEAM_CARDS.map((t) => <TeamCycleCard key={t.key} title={t.title} mine={t.mine} parsed={reports[t.key]} />)}
+          {TEAM_CARDS.map((t) => <TeamCycleCard key={t.key} title={t.title} mine={t.key === myTeam.eazybiReportKey} parsed={reports[t.key]} />)}
         </div>
       </Card>
 
